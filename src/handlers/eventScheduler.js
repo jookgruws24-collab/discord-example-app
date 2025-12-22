@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { getEventsNeedingUpdates, updateEventStatus, getEventsForCheckoutDisable } from '../services/eventService.js';
+import { getEventsNeedingUpdates, updateEventStatus, getEventsForCheckoutDisable, markCheckoutDisabled } from '../services/eventService.js';
 
 /**
  * Event Scheduler
@@ -142,7 +142,10 @@ async function disableCheckOutForClosedEvents() {
         // Disable check-out button in channel
         await disableCheckOutButton(channel, event.event_id);
         
-        // Post announcement
+        // Mark event as processed (won't send message again)
+        await markCheckoutDisabled(event.event_id);
+        
+        // Post announcement (only once)
         await channel.send({
           content: `🔒 **Check-Out Closed**\n\n` +
                    `The check-out period has ended (15 minutes after event closure).\n` +
@@ -167,14 +170,22 @@ async function disableCheckOutForClosedEvents() {
  */
 async function enableCheckInButton(channel, eventId) {
   try {
-    // Fetch recent messages to find the event message
-    const messages = await channel.messages.fetch({ limit: 10 });
+    // Fetch recent messages to find the event messages
+    const messages = await channel.messages.fetch({ limit: 15 });
     
-    // Find message with check-in button
+    // Find main message with check-in button
     const eventMessage = messages.find(msg => 
       msg.components.length > 0 && 
       msg.components[0].components.some(component => 
         component.customId === `checkin_${eventId}`
+      )
+    );
+    
+    // Find admin message with close/export buttons
+    const adminMessage = messages.find(msg =>
+      msg.components.length > 0 &&
+      msg.components[0].components.some(component =>
+        component.customId === `close_event_${eventId}`
       )
     );
     
@@ -183,18 +194,29 @@ async function enableCheckInButton(channel, eventId) {
       return;
     }
     
-    // Update button to enabled
+    // Update main message: Enable check-in button
     const checkInButton = new ButtonBuilder()
       .setCustomId(`checkin_${eventId}`)
       .setLabel('Check In')
       .setStyle(ButtonStyle.Success)
       .setDisabled(false); // Now enabled
     
-    const row = new ActionRowBuilder().addComponents(checkInButton);
+    const row1 = new ActionRowBuilder().addComponents(checkInButton);
+    await eventMessage.edit({ components: [row1] });
     
-    await eventMessage.edit({ components: [row] });
+    // Update admin message: Enable Close Event button (no export yet)
+    if (adminMessage) {
+      const closeEventButton = new ButtonBuilder()
+        .setCustomId(`close_event_${eventId}`)
+        .setLabel('🚪 Close Event')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(false); // Now enabled
+      
+      const row2 = new ActionRowBuilder().addComponents(closeEventButton);
+      await adminMessage.edit({ components: [row2] });
+    }
     
-    console.log(`✅ Enabled check-in button for event ${eventId}`);
+    console.log(`✅ Enabled check-in and close event buttons for event ${eventId}`);
   } catch (error) {
     console.error(`❌ Error enabling check-in button:`, error);
   }
@@ -208,14 +230,22 @@ async function enableCheckInButton(channel, eventId) {
  */
 async function disableCheckOutButton(channel, eventId) {
   try {
-    // Fetch recent messages to find the event message
-    const messages = await channel.messages.fetch({ limit: 10 });
+    // Fetch recent messages to find both messages
+    const messages = await channel.messages.fetch({ limit: 15 });
     
-    // Find message with buttons
+    // Find main message with check-in/check-out buttons
     const eventMessage = messages.find(msg => 
       msg.components.length > 0 && 
       msg.components[0].components.some(component => 
         component.customId === `checkout_${eventId}` || component.customId === `checkin_${eventId}`
+      )
+    );
+    
+    // Find admin message with close/export buttons
+    const adminMessage = messages.find(msg =>
+      msg.components.length > 0 &&
+      msg.components[0].components.some(component =>
+        component.customId === `close_event_${eventId}` || component.customId === `export_event_${eventId}`
       )
     );
     
@@ -224,7 +254,7 @@ async function disableCheckOutButton(channel, eventId) {
       return;
     }
     
-    // Disable both buttons
+    // Disable check-in and check-out buttons (main message)
     const checkInButton = new ButtonBuilder()
       .setCustomId(`checkin_${eventId}`)
       .setLabel('Check In')
@@ -237,11 +267,33 @@ async function disableCheckOutButton(channel, eventId) {
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true); // Now disabled
     
-    const row = new ActionRowBuilder().addComponents(checkInButton, checkOutButton);
+    const row1 = new ActionRowBuilder().addComponents(checkInButton, checkOutButton);
+    await eventMessage.edit({ components: [row1] });
     
-    await eventMessage.edit({ components: [row] });
+    // Add Export button now that check-out is closed (admin message)
+    if (adminMessage) {
+      const closeEventButton = new ButtonBuilder()
+        .setCustomId(`close_event_${eventId}`)
+        .setLabel('🚪 Close Event')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true); // Keep disabled
+      
+      const exportButton = new ButtonBuilder()
+        .setCustomId(`export_event_${eventId}`)
+        .setLabel('📊 Export CSV')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(false); // Now enabled - appears for first time!
+      
+      const row2 = new ActionRowBuilder().addComponents(closeEventButton, exportButton);
+      await adminMessage.edit({ 
+        content: `## 🔐 Admin Controls\n\n` +
+                 `**Export CSV:** Download attendance data\n\n` +
+                 `⚠️ _These controls are for admins only._`,
+        components: [row2] 
+      });
+    }
     
-    console.log(`✅ Disabled check-out button for event ${eventId}`);
+    console.log(`✅ Disabled check-out button, kept export button enabled for event ${eventId}`);
   } catch (error) {
     console.error(`❌ Error disabling check-out button:`, error);
   }

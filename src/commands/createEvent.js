@@ -95,9 +95,17 @@ export async function handleCreateEventCommand(interaction) {
       .setStyle(ButtonStyle.Success)
       .setDisabled(true); // Will be enabled at start time
     
-    const row = new ActionRowBuilder().addComponents(checkInButton);
+    // Create Close Event button (disabled initially, shown when event starts)
+    const closeEventButton = new ButtonBuilder()
+      .setCustomId(`close_event_${eventId}`)
+      .setLabel('🚪 Close Event')
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(true); // Will be enabled when event starts
     
-    // Post initial message in event channel
+    // ActionRow 1: Check-in button (for everyone)
+    const row1 = new ActionRowBuilder().addComponents(checkInButton);
+    
+    // Post main message in event channel (visible to everyone)
     const timeUntilStart = Math.ceil((startTime - new Date()) / 1000 / 60); // minutes
     
     await channel.send({
@@ -105,7 +113,18 @@ export async function handleCreateEventCommand(interaction) {
                `**Event Start Time:** ${startTime.toLocaleString()}\n` +
                `⏰ Check-in will be available in **${timeUntilStart} minute(s)**\n\n` +
                `_The check-in button will automatically enable when the event starts._`,
-      components: [row],
+      components: [row1],
+    });
+    
+    // Post admin-only control panel as separate message
+    // ActionRow 2: Only Close Event button (Export will appear after check-out closes)
+    const row2 = new ActionRowBuilder().addComponents(closeEventButton);
+    
+    await channel.send({
+      content: `## 🔐 Admin Controls\n\n` +
+               `**Close Event:** End the event and enable check-out (available when event starts)\n\n` +
+               `⚠️ _These controls are for admins only._`,
+      components: [row2],
     });
     
     // Send confirmation to admin

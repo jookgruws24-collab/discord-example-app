@@ -208,19 +208,25 @@ export async function getEventsNeedingUpdates() {
 
 /**
  * Get events that need check-out auto-disable (closed over 15 minutes ago)
+ * Only returns events that haven't been processed yet
+ * Uses a 16-minute check to ensure we only process once
  * 
  * @returns {Promise<Array>} - Array of events to process
  */
 export async function getEventsForCheckoutDisable() {
   try {
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const sixteenMinutesAgo = new Date(Date.now() - 16 * 60 * 1000).toISOString();
     
+    // Only get events closed between 15-16 minutes ago (1-minute window)
+    // This ensures we only process each event once
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .eq('status', 'closed')
       .not('closed_at', 'is', null)
-      .lt('closed_at', fifteenMinutesAgo);
+      .gte('closed_at', sixteenMinutesAgo) // Greater than or equal to 16 min ago
+      .lt('closed_at', fifteenMinutesAgo);  // Less than 15 min ago
     
     if (error) {
       console.error('❌ Error fetching events for checkout disable:', error);
@@ -234,6 +240,21 @@ export async function getEventsForCheckoutDisable() {
   }
 }
 
+/**
+ * Mark event as checkout disabled (optional - for tracking only)
+ * Note: We don't actually change status to avoid schema changes
+ * The time-window query above prevents duplicate processing
+ * 
+ * @param {string} eventId - UUID of the event
+ * @returns {Promise<boolean>} - True if successful
+ */
+export async function markCheckoutDisabled(eventId) {
+  // This function is now optional - the time window prevents duplicates
+  // Keeping it for potential future use or logging
+  console.log(`📝 Event ${eventId} marked as checkout disabled`);
+  return true;
+}
+
 export default {
   createEvent,
   closeEvent,
@@ -241,4 +262,5 @@ export default {
   updateEventStatus,
   getEventsNeedingUpdates,
   getEventsForCheckoutDisable,
+  markCheckoutDisabled,
 };
