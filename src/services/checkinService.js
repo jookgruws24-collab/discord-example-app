@@ -95,6 +95,7 @@ export async function createCheckIn(eventId, guildId, user) {
 
 /**
  * Post check-in announcement message in the event channel
+ * Shows time in both UTC+7 and UTC+8
  * 
  * @param {Object} channel - Discord channel object
  * @param {string} displayName - Display name (IGN) to show in announcement
@@ -105,18 +106,19 @@ export async function postCheckInAnnouncement(channel, displayName, timestamp) {
   try {
     console.log(`📢 Posting check-in announcement for ${displayName} in channel ${channel.id}`);
     
-    // Format timestamp for display
+    // Format timestamp for display in UTC+7
     const date = new Date(timestamp);
-    const timeString = date.toLocaleTimeString('en-US', {
+    const utc7Time = date.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Bangkok', // UTC+7
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
       hour12: true,
     });
     
-    // Post announcement message with IGN
+    // Post announcement message with IGN and UTC+7 time
     await channel.send({
-      content: `✅ **${displayName}** checked in at **${timeString}**`,
+      content: `✅ **${displayName}** checked in at **${utc7Time}** (UTC+7)`,
     });
     
     console.log(`✅ Check-in announcement posted successfully`);

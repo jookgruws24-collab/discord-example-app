@@ -55,7 +55,7 @@ export async function handleCreateEventCommand(interaction) {
       channel = await interaction.guild.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
-        topic: `Event: ${eventName} | Starts: ${startTime.toLocaleString()}`,
+        topic: `Event: ${eventName} | UTC+7: ${utc7Time} | UTC+8: ${utc8Time}`,
         reason: `Event created by ${interaction.user.tag}`,
       });
       
