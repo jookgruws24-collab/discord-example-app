@@ -95,6 +95,13 @@ export async function handleCreateEventCommand(interaction) {
       .setStyle(ButtonStyle.Success)
       .setDisabled(true); // Will be enabled at start time
     
+    // Create undo check-in button (for users who checked in by mistake)
+    const undoCheckInButton = new ButtonBuilder()
+      .setCustomId(`undo_checkin_${eventId}`)
+      .setLabel('❌ Undo Check-In')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true); // Will be enabled when event starts
+    
     // Create Close Event button (disabled initially, shown when event starts)
     const closeEventButton = new ButtonBuilder()
       .setCustomId(`close_event_${eventId}`)
@@ -109,8 +116,8 @@ export async function handleCreateEventCommand(interaction) {
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(false); // Always enabled
     
-    // ActionRow 1: Check-in button (for everyone)
-    const row1 = new ActionRowBuilder().addComponents(checkInButton);
+    // ActionRow 1: Check-in and Undo buttons (for everyone)
+    const row1 = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton);
     
     // Post main message in event channel (visible to everyone)
     const timeUntilStart = Math.ceil((startTime - new Date()) / 1000 / 60); // minutes

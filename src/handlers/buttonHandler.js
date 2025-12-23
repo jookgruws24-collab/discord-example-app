@@ -634,6 +634,117 @@ async function handleDeleteEventButton(interaction) {
 }
 
 /**
+ * Handle undo check-in button interaction
+ * Allows users to remove their check-in if they made a mistake
+ * Only works while event is still active (not closed)
+ * 
+ * @param {Object} interaction - Discord button interaction
+ * @returns {Promise<void>}
+ */
+async function handleUndoCheckInButton(interaction) {
+  try {
+    // Parse event ID from button custom ID (format: undo_checkin_<event_id>)
+    const eventId = interaction.customId.split('_')[2];
+    
+    if (!eventId) {
+      console.error('❌ Invalid undo check-in button custom ID:', interaction.customId);
+      await interaction.reply({
+        content: '❌ Invalid button. Please contact an admin.',
+        ephemeral: true,
+      });
+      return;
+    }
+    
+    console.log(`🔘 Undo Check-In button clicked by ${interaction.user.tag} for event ${eventId}`);
+    
+    // Defer reply
+    await interaction.deferReply({ ephemeral: true });
+    
+    // Get event from database
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('event_id', eventId)
+      .single();
+    
+    if (eventError || !event) {
+      console.error('❌ Event not found:', eventId);
+      await interaction.editReply({
+        content: '❌ Event not found. It may have been deleted.',
+      });
+      return;
+    }
+    
+    // Check if event is closed
+    if (event.status === 'closed') {
+      await interaction.editReply({
+        content: '🚫 Cannot undo check-in after event is closed. Please use check-out instead.',
+      });
+      return;
+    }
+    
+    // Check if user has checked in
+    const { data: checkin, error: checkinError } = await supabase
+      .from('checkins')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('user_id', interaction.user.id)
+      .single();
+    
+    if (checkinError || !checkin) {
+      console.log(`ℹ️ User ${interaction.user.tag} hasn't checked in yet`);
+      await interaction.editReply({
+        content: '⚠️ You have not checked in to this event yet.',
+      });
+      return;
+    }
+    
+    // Delete the check-in record
+    const { error: deleteError } = await supabase
+      .from('checkins')
+      .delete()
+      .eq('checkin_id', checkin.checkin_id);
+    
+    if (deleteError) {
+      console.error('❌ Database error deleting check-in:', deleteError);
+      await interaction.editReply({
+        content: '❌ Failed to undo check-in. Please try again.',
+      });
+      return;
+    }
+    
+    console.log(`✅ Check-in undone for user ${interaction.user.tag} (${checkin.checkin_id})`);
+    
+    await interaction.editReply({
+      content: `✅ **Check-in removed!**\n\n` +
+               `Your check-in has been cancelled. You can check in again using the Check In button.`,
+    });
+    
+    // Post announcement in channel
+    await interaction.channel.send({
+      content: `🔄 **${checkin.ign}** cancelled their check-in`,
+    });
+    
+  } catch (error) {
+    console.error('❌ Error handling undo check-in button:', error);
+    
+    try {
+      const errorMessage = {
+        content: '❌ An error occurred while undoing check-in. Please try again.',
+      };
+      
+      if (interaction.deferred) {
+        await interaction.editReply(errorMessage);
+      } else {
+        await interaction.reply({ ...errorMessage, ephemeral: true });
+      }
+    } catch (followUpError) {
+      console.error('❌ Failed to send error message:', followUpError);
+    }
+  }
+}
+
+/**
  * Route button interactions to appropriate handlers
  * 
  * @param {Object} interaction - Discord button interaction
@@ -644,6 +755,8 @@ export async function handleButtonInteraction(interaction) {
   
   if (customId.startsWith('checkin_')) {
     await handleCheckInButton(interaction);
+  } else if (customId.startsWith('undo_checkin_')) {
+    await handleUndoCheckInButton(interaction);
   } else if (customId.startsWith('checkout_')) {
     await handleCheckOutButton(interaction);
   } else if (customId.startsWith('close_event_')) {

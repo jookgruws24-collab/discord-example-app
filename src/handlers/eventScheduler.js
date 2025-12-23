@@ -196,14 +196,20 @@ async function enableCheckInButton(channel, eventId) {
       return;
     }
     
-    // Update main message: Enable check-in button
+    // Update main message: Enable check-in and undo buttons
     const checkInButton = new ButtonBuilder()
       .setCustomId(`checkin_${eventId}`)
       .setLabel('Check In')
       .setStyle(ButtonStyle.Success)
       .setDisabled(false); // Now enabled
     
-    const row1 = new ActionRowBuilder().addComponents(checkInButton);
+    const undoCheckInButton = new ButtonBuilder()
+      .setCustomId(`undo_checkin_${eventId}`)
+      .setLabel('❌ Undo Check-In')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(false); // Now enabled
+    
+    const row1 = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton);
     await eventMessage.edit({ components: [row1] });
     
     // Update admin message: Enable Close Event button and keep Delete button

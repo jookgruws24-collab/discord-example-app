@@ -135,10 +135,16 @@ async function updateChannelButtonsOnClose(channel, eventId) {
       return;
     }
     
-    // Create updated buttons
+    // Create updated buttons - disable check-in and undo, enable check-out
     const checkInButton = new ButtonBuilder()
       .setCustomId(`checkin_${eventId}`)
       .setLabel('Check In')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true); // Disabled when closed
+    
+    const undoCheckInButton = new ButtonBuilder()
+      .setCustomId(`undo_checkin_${eventId}`)
+      .setLabel('❌ Undo Check-In')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true); // Disabled when closed
     
@@ -148,7 +154,7 @@ async function updateChannelButtonsOnClose(channel, eventId) {
       .setStyle(ButtonStyle.Primary)
       .setDisabled(false); // Enabled when closed
     
-    const row = new ActionRowBuilder().addComponents(checkInButton, checkOutButton);
+    const row = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton, checkOutButton);
     
     // Update message
     await eventMessage.edit({
