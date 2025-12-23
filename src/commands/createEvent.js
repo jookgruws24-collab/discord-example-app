@@ -75,12 +75,27 @@ export async function handleCreateEventCommand(interaction) {
     let channel;
     
     try {
-      channel = await interaction.guild.channels.create({
+      const channelOptions = {
         name: channelName,
         type: ChannelType.GuildText,
         topic: `Event: ${eventName} | UTC+7: ${utc7Time} | UTC+8: ${utc8Time}`,
         reason: `Event created by ${interaction.user.tag}`,
-      });
+      };
+      
+      // Add category if configured
+      const categoryId = process.env.EVENT_CATEGORY_ID;
+      if (categoryId) {
+        // Validate category exists
+        const category = await interaction.guild.channels.fetch(categoryId).catch(() => null);
+        if (category && category.type === ChannelType.GuildCategory) {
+          channelOptions.parent = categoryId;
+          console.log(`📁 Event channel will be created under category: ${category.name}`);
+        } else {
+          console.warn(`⚠️ EVENT_CATEGORY_ID is set but category not found or invalid. Creating channel without category.`);
+        }
+      }
+      
+      channel = await interaction.guild.channels.create(channelOptions);
       
       console.log(`✅ Created channel: ${channel.name} (${channel.id})`);
     } catch (channelError) {

@@ -104,6 +104,9 @@ In the "Bot" section, enable these intents:
    
    # Admin Configuration (Optional)
    ADMIN_ROLE_ID=your_admin_role_id_here
+   
+   # Event Channel Configuration (Optional)
+   EVENT_CATEGORY_ID=your_category_id_here
    ```
 
 **Where to find these:**
@@ -113,6 +116,7 @@ In the "Bot" section, enable these intents:
 - `SUPABASE_URL`: Settings → API in Supabase dashboard
 - `SUPABASE_KEY`: Settings → API in Supabase (anon public key)
 - `ADMIN_ROLE_ID`: Right-click a role in Discord (Developer Mode required)
+- `EVENT_CATEGORY_ID`: Right-click a category in Discord (Developer Mode required) - If set, event channels will be created under this category for better organization
 
 ### 5. Register Slash Commands
 
