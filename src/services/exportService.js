@@ -68,6 +68,7 @@ export async function generateExportData(eventId) {
         username: checkIn.username,
         discriminator: checkIn.discriminator || '',
         ign: checkIn.ign || '', // IGN from check-in snapshot (NULL for pre-IGN records)
+        status: checkIn.status || 'checked-in', // Status tracking
         checkInTime: checkIn.timestamp,
         checkOutTime: checkOut ? checkOut.timestamp : null,
       };
@@ -82,6 +83,7 @@ export async function generateExportData(eventId) {
           username: '', // Username not available for check-out-only records
           discriminator: '',
           ign: '', // IGN not available for check-out-only records
+          status: '', // No status for check-out-only records
           checkInTime: null,
           checkOutTime: checkOut.timestamp,
         });
@@ -111,8 +113,8 @@ export async function generateExportData(eventId) {
  * @returns {string} - CSV formatted string
  */
 export function formatAsCSV(data) {
-  // CSV Headers - includes IGN column
-  const headers = ['User ID', 'Username', 'Discriminator', 'IGN', 'Check-In Time', 'Check-Out Time'];
+  // CSV Headers - includes IGN and Status columns
+  const headers = ['User ID', 'Username', 'Discriminator', 'IGN', 'Status', 'Check-In Time', 'Check-Out Time'];
   
   // Format header row
   const csvRows = [headers.join(',')];
@@ -124,6 +126,7 @@ export function formatAsCSV(data) {
       escapeCSVField(row.username),
       escapeCSVField(row.discriminator),
       escapeCSVField(row.ign), // IGN column (empty string for NULL/pre-IGN records)
+      escapeCSVField(row.status), // Status column
       row.checkInTime ? formatTimestamp(row.checkInTime) : '',
       row.checkOutTime ? formatTimestamp(row.checkOutTime) : '',
     ];

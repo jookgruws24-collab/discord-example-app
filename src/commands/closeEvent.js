@@ -51,15 +51,34 @@ export async function handleCloseEventCommand(interaction) {
       return;
     }
     
+    // Get status summary statistics
+    const stats = await getEventStatusSummary(event.event_id);
+    
     // Update channel message buttons
     await updateChannelButtonsOnClose(interaction.channel, event.event_id);
     
+    // Build summary message
+    let summaryMessage = `✅ Event "${event.event_name}" has been closed!\n\n` +
+                         `📋 Check-in is now **disabled**\n` +
+                         `🚪 Check-out is now **enabled** for the next 15 minutes\n` +
+                         `⏰ Check-out will automatically disable after 15 minutes`;
+    
+    // Add statistics if available
+    if (stats) {
+      const completionRate = stats.total > 0 
+        ? ((stats.completed / stats.total) * 100).toFixed(1)
+        : '0.0';
+      
+      summaryMessage += `\n\n**📊 Attendance Summary:**\n` +
+                       `• Total Check-ins: **${stats.total}**\n` +
+                       `• Completed (with check-out): **${stats.completed}**\n` +
+                       `• Incomplete (no check-out): **${stats.incomplete}**\n` +
+                       `• Completion Rate: **${completionRate}%**`;
+    }
+    
     // Send confirmation
     await interaction.editReply({
-      content: `✅ Event "${event.event_name}" has been closed!\n\n` +
-               `📋 Check-in is now **disabled**\n` +
-               `🚪 Check-out is now **enabled** for the next 15 minutes\n` +
-               `⏰ Check-out will automatically disable after 15 minutes`,
+      content: summaryMessage,
     });
     
     // Post announcement in channel
@@ -139,6 +158,48 @@ async function updateChannelButtonsOnClose(channel, eventId) {
     console.log(`✅ Updated channel buttons - check-in disabled, check-out enabled`);
   } catch (error) {
     console.error('❌ Error updating channel buttons:', error);
+  }
+}
+
+/**
+ * Get event status summary statistics
+ * 
+ * @param {string} eventId - UUID of the event
+ * @returns {Promise<Object|null>} - Status counts or null
+ */
+async function getEventStatusSummary(eventId) {
+  try {
+    const { supabase } = await import('../database/supabase.js');
+    
+    // Get all check-ins for the event
+    const { data, error } = await supabase
+      .from('checkins')
+      .select('status')
+      .eq('event_id', eventId);
+    
+    if (error) {
+      console.error('❌ Error fetching status summary:', error);
+      return null;
+    }
+    
+    // Count by status
+    const stats = {
+      total: data?.length || 0,
+      checkedIn: 0,
+      completed: 0,
+      incomplete: 0,
+    };
+    
+    (data || []).forEach(row => {
+      if (row.status === 'checked-in') stats.checkedIn++;
+      else if (row.status === 'completed') stats.completed++;
+      else if (row.status === 'incomplete') stats.incomplete++;
+    });
+    
+    return stats;
+  } catch (error) {
+    console.error('❌ Error calculating status summary:', error);
+    return null;
   }
 }
 

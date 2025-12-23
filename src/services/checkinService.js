@@ -43,7 +43,7 @@ export async function createCheckIn(eventId, guildId, user) {
     const userIgn = ignResult.ign;
     console.log(`✅ IGN found for user: "${userIgn}"`);
     
-    // Insert check-in record with IGN
+    // Insert check-in record with IGN and status
     const { data, error } = await supabase
       .from('checkins')
       .insert({
@@ -52,6 +52,7 @@ export async function createCheckIn(eventId, guildId, user) {
         username: user.username,
         discriminator: user.discriminator === '0' ? null : user.discriminator,
         ign: userIgn, // Store IGN snapshot at check-in time
+        status: 'checked-in', // Initial status
         timestamp: new Date().toISOString(),
       })
       .select()

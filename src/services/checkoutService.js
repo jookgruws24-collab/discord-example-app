@@ -52,6 +52,20 @@ export async function createCheckOut(eventId, userId) {
       };
     }
     
+    // Update corresponding check-in status to 'completed'
+    const { error: updateError } = await supabase
+      .from('checkins')
+      .update({ status: 'completed' })
+      .eq('event_id', eventId)
+      .eq('user_id', userId);
+    
+    if (updateError) {
+      console.error('⚠️ Failed to update check-in status to completed:', updateError);
+      // Don't fail the check-out if status update fails
+    } else {
+      console.log(`✅ Updated check-in status to 'completed' for user ${userId}`);
+    }
+    
     console.log(`✅ Check-out created successfully: ${data.checkout_id}`);
     return {
       success: true,
