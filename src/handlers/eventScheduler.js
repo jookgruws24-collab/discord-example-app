@@ -81,10 +81,11 @@ async function enableCheckInForPendingEvents() {
     for (const event of events) {
       try {
         // Get channel
-        const channel = await client.channels.fetch(event.channel_id);
+        const channel = await client.channels.fetch(event.channel_id).catch(() => null);
         
         if (!channel) {
-          console.warn(`⚠️ Channel ${event.channel_id} not found for event ${event.event_id}`);
+          console.warn(`⚠️ Channel ${event.channel_id} not found for event ${event.event_id} - marking as closed`);
+          await updateEventStatus(event.event_id, 'closed');
           continue;
         }
         
@@ -132,10 +133,11 @@ async function disableCheckOutForClosedEvents() {
     for (const event of events) {
       try {
         // Get channel
-        const channel = await client.channels.fetch(event.channel_id);
+        const channel = await client.channels.fetch(event.channel_id).catch(() => null);
         
         if (!channel) {
-          console.warn(`⚠️ Channel ${event.channel_id} not found for event ${event.event_id}`);
+          console.warn(`⚠️ Channel ${event.channel_id} not found for event ${event.event_id} - marking as processed`);
+          await markCheckoutDisabled(event.event_id);
           continue;
         }
         
