@@ -511,6 +511,129 @@ export async function handleExportEventButton(interaction) {
 }
 
 /**
+ * Handle delete event button interaction
+ * Admin can delete the event and channel
+ * 
+ * @param {Object} interaction - Discord button interaction
+ * @returns {Promise<void>}
+ */
+async function handleDeleteEventButton(interaction) {
+  try {
+    // Parse event ID from button custom ID (format: delete_event_<event_id>)
+    const eventId = interaction.customId.split('_')[2]; // Note: split returns ['delete', 'event', 'eventId']
+    
+    if (!eventId) {
+      console.error('❌ Invalid delete event button custom ID:', interaction.customId);
+      await interaction.reply({
+        content: '❌ Invalid button. Please contact an admin.',
+        ephemeral: true,
+      });
+      return;
+    }
+    
+    console.log(`🔘 Delete Event button clicked by ${interaction.user.tag} for event ${eventId}`);
+    
+    // Defer reply (deletion may take a moment)
+    await interaction.deferReply({ ephemeral: true });
+    
+    // Check admin permissions
+    if (!isAdmin(interaction)) {
+      await interaction.editReply({
+        content: '❌ Only admins can delete events.',
+      });
+      return;
+    }
+    
+    // Get event from database
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('event_id', eventId)
+      .single();
+    
+    if (eventError || !event) {
+      console.error('❌ Event not found:', eventId);
+      await interaction.editReply({
+        content: '❌ Event not found. It may have already been deleted.',
+      });
+      return;
+    }
+    
+    // Get the channel
+    const channel = interaction.channel;
+    
+    // Delete all check-outs for this event
+    const { error: checkoutsError } = await supabase
+      .from('checkouts')
+      .delete()
+      .eq('event_id', eventId);
+    
+    if (checkoutsError) {
+      console.error('⚠️ Error deleting check-outs:', checkoutsError);
+    }
+    
+    // Delete all check-ins for this event
+    const { error: checkinsError } = await supabase
+      .from('checkins')
+      .delete()
+      .eq('event_id', eventId);
+    
+    if (checkinsError) {
+      console.error('⚠️ Error deleting check-ins:', checkinsError);
+    }
+    
+    // Delete the event from database
+    const { error: deleteError } = await supabase
+      .from('events')
+      .delete()
+      .eq('event_id', eventId);
+    
+    if (deleteError) {
+      console.error('❌ Database error deleting event:', deleteError);
+      await interaction.editReply({
+        content: '❌ Failed to delete event from database. Please try again.',
+      });
+      return;
+    }
+    
+    // Send confirmation before deleting channel
+    await interaction.editReply({
+      content: `✅ Event "${event.event_name}" has been deleted!\n\n` +
+               `The channel will be deleted in 5 seconds...`,
+    });
+    
+    console.log(`✅ Event ${eventId} deleted from database by ${interaction.user.tag}`);
+    
+    // Wait 5 seconds then delete the channel
+    setTimeout(async () => {
+      try {
+        await channel.delete();
+        console.log(`✅ Channel ${channel.id} deleted successfully`);
+      } catch (channelError) {
+        console.error('❌ Error deleting channel:', channelError);
+      }
+    }, 5000);
+    
+  } catch (error) {
+    console.error('❌ Error handling delete event button:', error);
+    
+    try {
+      const errorMessage = {
+        content: '❌ An error occurred while deleting the event. Please try again.',
+      };
+      
+      if (interaction.deferred) {
+        await interaction.editReply(errorMessage);
+      } else {
+        await interaction.reply({ ...errorMessage, ephemeral: true });
+      }
+    } catch (followUpError) {
+      console.error('❌ Failed to send error message:', followUpError);
+    }
+  }
+}
+
+/**
  * Route button interactions to appropriate handlers
  * 
  * @param {Object} interaction - Discord button interaction
@@ -527,6 +650,8 @@ export async function handleButtonInteraction(interaction) {
     await handleCloseEventButton(interaction);
   } else if (customId.startsWith('export_event_')) {
     await handleExportEventButton(interaction);
+  } else if (customId.startsWith('delete_event_')) {
+    await handleDeleteEventButton(interaction);
   } else {
     console.error('❌ Unknown button custom ID:', customId);
     await interaction.reply({

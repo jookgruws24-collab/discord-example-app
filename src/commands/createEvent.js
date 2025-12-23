@@ -102,6 +102,13 @@ export async function handleCreateEventCommand(interaction) {
       .setStyle(ButtonStyle.Danger)
       .setDisabled(true); // Will be enabled when event starts
     
+    // Create Delete Event button (always enabled for admins)
+    const deleteEventButton = new ButtonBuilder()
+      .setCustomId(`delete_event_${eventId}`)
+      .setLabel('🗑️ Delete Event')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(false); // Always enabled
+    
     // ActionRow 1: Check-in button (for everyone)
     const row1 = new ActionRowBuilder().addComponents(checkInButton);
     
@@ -117,13 +124,14 @@ export async function handleCreateEventCommand(interaction) {
     });
     
     // Post admin-only control panel as separate message
-    // ActionRow 2: Only Close Event button (Export will appear after check-out closes)
-    const row2 = new ActionRowBuilder().addComponents(closeEventButton);
+    // ActionRow 2: Close Event and Delete Event buttons
+    const row2 = new ActionRowBuilder().addComponents(closeEventButton, deleteEventButton);
     
     await channel.send({
       content: `## 🔐 Admin Controls\n\n` +
-               `**Close Event:** End the event and enable check-out (available when event starts)\n\n` +
-               `⚠️ _These controls are for admins only._`,
+               `**Close Event:** End the event and enable check-out (available when event starts)\n` +
+               `**Delete Event:** Permanently delete this event and channel\n\n` +
+               `⚠️ _These controls are for admins only. Delete action cannot be undone._`,
       components: [row2],
     });
     

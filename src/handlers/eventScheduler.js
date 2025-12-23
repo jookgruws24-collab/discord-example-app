@@ -206,7 +206,7 @@ async function enableCheckInButton(channel, eventId) {
     const row1 = new ActionRowBuilder().addComponents(checkInButton);
     await eventMessage.edit({ components: [row1] });
     
-    // Update admin message: Enable Close Event button (no export yet)
+    // Update admin message: Enable Close Event button and keep Delete button
     if (adminMessage) {
       const closeEventButton = new ButtonBuilder()
         .setCustomId(`close_event_${eventId}`)
@@ -214,7 +214,13 @@ async function enableCheckInButton(channel, eventId) {
         .setStyle(ButtonStyle.Danger)
         .setDisabled(false); // Now enabled
       
-      const row2 = new ActionRowBuilder().addComponents(closeEventButton);
+      const deleteEventButton = new ButtonBuilder()
+        .setCustomId(`delete_event_${eventId}`)
+        .setLabel('🗑️ Delete Event')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(false); // Always enabled
+      
+      const row2 = new ActionRowBuilder().addComponents(closeEventButton, deleteEventButton);
       await adminMessage.edit({ components: [row2] });
     }
     
