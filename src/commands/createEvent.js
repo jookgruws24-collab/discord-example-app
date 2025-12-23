@@ -47,17 +47,55 @@ export async function handleCreateEventCommand(interaction) {
       return;
     }
     
+    // Format times for different timezones (needed for channel topic)
+    // UTC+7 time (your timezone - Bangkok, Hanoi, Jakarta)
+    const utc7Time = startTime.toLocaleString('en-US', { 
+      timeZone: 'Asia/Bangkok', // UTC+7
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    // UTC+8 time (for your friend - Singapore, Hong Kong, Manila)
+    const utc8Time = startTime.toLocaleString('en-US', {
+      timeZone: 'Asia/Singapore', // UTC+8
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
     // Create event channel
-    const channelName = `event-${eventName.toLowerCase().replace(/\s+/g, '-')}`;
+    const channelName = eventName.toLowerCase().replace(/\s+/g, '-');
     let channel;
     
     try {
-      channel = await interaction.guild.channels.create({
+      const channelOptions = {
         name: channelName,
         type: ChannelType.GuildText,
-        topic: `Event: ${eventName} | Starts: ${startTime.toLocaleString()}`,
+        topic: `Event: ${eventName} | UTC+7: ${utc7Time} | UTC+8: ${utc8Time}`,
         reason: `Event created by ${interaction.user.tag}`,
-      });
+      };
+      
+      // Add category if configured
+      const categoryId = process.env.EVENT_CATEGORY_ID;
+      if (categoryId) {
+        // Validate category exists
+        const category = await interaction.guild.channels.fetch(categoryId).catch(() => null);
+        if (category && category.type === ChannelType.GuildCategory) {
+          channelOptions.parent = categoryId;
+          console.log(`📁 Event channel will be created under category: ${category.name}`);
+        } else {
+          console.warn(`⚠️ EVENT_CATEGORY_ID is set but category not found or invalid. Creating channel without category.`);
+        }
+      }
+      
+      channel = await interaction.guild.channels.create(channelOptions);
       
       console.log(`✅ Created channel: ${channel.name} (${channel.id})`);
     } catch (channelError) {
@@ -95,6 +133,13 @@ export async function handleCreateEventCommand(interaction) {
       .setStyle(ButtonStyle.Success)
       .setDisabled(true); // Will be enabled at start time
     
+    // Create undo check-in button (for users who checked in by mistake)
+    const undoCheckInButton = new ButtonBuilder()
+      .setCustomId(`undo_checkin_${eventId}`)
+      .setLabel('❌ Undo Check-In')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true); // Will be enabled when event starts
+    
     // Create Close Event button (disabled initially, shown when event starts)
     const closeEventButton = new ButtonBuilder()
       .setCustomId(`close_event_${eventId}`)
@@ -102,28 +147,38 @@ export async function handleCreateEventCommand(interaction) {
       .setStyle(ButtonStyle.Danger)
       .setDisabled(true); // Will be enabled when event starts
     
-    // ActionRow 1: Check-in button (for everyone)
-    const row1 = new ActionRowBuilder().addComponents(checkInButton);
+    // Create Delete Event button (always enabled for admins)
+    const deleteEventButton = new ButtonBuilder()
+      .setCustomId(`delete_event_${eventId}`)
+      .setLabel('🗑️ Delete Event')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(false); // Always enabled
+    
+    // ActionRow 1: Check-in and Undo buttons (for everyone)
+    const row1 = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton);
     
     // Post main message in event channel (visible to everyone)
     const timeUntilStart = Math.ceil((startTime - new Date()) / 1000 / 60); // minutes
     
     await channel.send({
       content: `# 📋 ${eventName}\n\n` +
-               `**Event Start Time:** ${startTime.toLocaleString()}\n` +
+               `**Event Start Time:**\n` +
+               `🕐 UTC+7: ${utc7Time}\n` +
+               `🌏 UTC+8: ${utc8Time}\n\n` +
                `⏰ Check-in will be available in **${timeUntilStart} minute(s)**\n\n` +
                `_The check-in button will automatically enable when the event starts._`,
       components: [row1],
     });
     
     // Post admin-only control panel as separate message
-    // ActionRow 2: Only Close Event button (Export will appear after check-out closes)
-    const row2 = new ActionRowBuilder().addComponents(closeEventButton);
+    // ActionRow 2: Close Event and Delete Event buttons
+    const row2 = new ActionRowBuilder().addComponents(closeEventButton, deleteEventButton);
     
     await channel.send({
       content: `## 🔐 Admin Controls\n\n` +
-               `**Close Event:** End the event and enable check-out (available when event starts)\n\n` +
-               `⚠️ _These controls are for admins only._`,
+               `**Close Event:** End the event and enable check-out (available when event starts)\n` +
+               `**Delete Event:** Permanently delete this event and channel\n\n` +
+               `⚠️ _These controls are for admins only. Delete action cannot be undone._`,
       components: [row2],
     });
     
@@ -132,7 +187,8 @@ export async function handleCreateEventCommand(interaction) {
       content: `✅ Event created successfully!\n\n` +
                `**Channel:** ${channel}\n` +
                `**Event Name:** ${eventName}\n` +
-               `**Start Time:** ${startTime.toLocaleString()}\n` +
+               `**Start Time (UTC+7):** ${utc7Time}\n` +
+               `**Start Time (UTC+8):** ${utc8Time}\n` +
                `**Event ID:** \`${eventId}\`\n\n` +
                `The check-in button will automatically enable at the start time.`,
     });
@@ -159,6 +215,7 @@ export async function handleCreateEventCommand(interaction) {
 
 /**
  * Parse start time string to Date object
+ * Interprets input as UTC+7 timezone (Asia/Bangkok)
  * 
  * @param {string} input - Start time string (e.g., "2025-12-25 14:00")
  * @returns {Date|null} - Parsed date or null if invalid
@@ -166,7 +223,18 @@ export async function handleCreateEventCommand(interaction) {
 function parseStartTime(input) {
   try {
     // Expected format: "YYYY-MM-DD HH:MM"
-    const date = new Date(input);
+    // Parse as UTC+7 (Asia/Bangkok) timezone
+    const parts = input.trim().match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
+    
+    if (!parts) {
+      return null;
+    }
+    
+    const [, year, month, day, hour, minute] = parts;
+    
+    // Create date string in ISO format with UTC+7 offset
+    const isoString = `${year}-${month}-${day}T${hour}:${minute}:00+07:00`;
+    const date = new Date(isoString);
     
     if (isNaN(date.getTime())) {
       return null;

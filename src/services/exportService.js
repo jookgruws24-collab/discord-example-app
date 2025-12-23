@@ -68,6 +68,7 @@ export async function generateExportData(eventId) {
         username: checkIn.username,
         discriminator: checkIn.discriminator || '',
         ign: checkIn.ign || '', // IGN from check-in snapshot (NULL for pre-IGN records)
+        status: checkIn.status || 'checked-in', // Status tracking
         checkInTime: checkIn.timestamp,
         checkOutTime: checkOut ? checkOut.timestamp : null,
       };
@@ -82,6 +83,7 @@ export async function generateExportData(eventId) {
           username: '', // Username not available for check-out-only records
           discriminator: '',
           ign: '', // IGN not available for check-out-only records
+          status: '', // No status for check-out-only records
           checkInTime: null,
           checkOutTime: checkOut.timestamp,
         });
@@ -111,8 +113,8 @@ export async function generateExportData(eventId) {
  * @returns {string} - CSV formatted string
  */
 export function formatAsCSV(data) {
-  // CSV Headers - includes IGN column
-  const headers = ['User ID', 'Username', 'Discriminator', 'IGN', 'Check-In Time', 'Check-Out Time'];
+  // CSV Headers - includes IGN and Status columns
+  const headers = ['User ID', 'Username', 'Discriminator', 'IGN', 'Status', 'Check-In Time', 'Check-Out Time'];
   
   // Format header row
   const csvRows = [headers.join(',')];
@@ -124,6 +126,7 @@ export function formatAsCSV(data) {
       escapeCSVField(row.username),
       escapeCSVField(row.discriminator),
       escapeCSVField(row.ign), // IGN column (empty string for NULL/pre-IGN records)
+      escapeCSVField(row.status), // Status column
       row.checkInTime ? formatTimestamp(row.checkInTime) : '',
       row.checkOutTime ? formatTimestamp(row.checkOutTime) : '',
     ];
@@ -155,22 +158,25 @@ function escapeCSVField(field) {
 
 /**
  * Format ISO timestamp for CSV (human-readable)
+ * Shows time in UTC+7 timezone
  * 
  * @param {string} isoTimestamp - ISO 8601 timestamp
- * @returns {string} - Formatted timestamp
+ * @returns {string} - Formatted timestamp in UTC+7
  */
 function formatTimestamp(isoTimestamp) {
   const date = new Date(isoTimestamp);
   
-  // Format: YYYY-MM-DD HH:MM:SS
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  // Format in UTC+7 timezone: YYYY-MM-DD HH:MM:SS
+  return date.toLocaleString('en-US', {
+    timeZone: 'Asia/Bangkok', // UTC+7
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).replace(/(\d+)\/(\d+)\/(\d+),\s+(\d+):(\d+):(\d+)/, '$3-$1-$2 $4:$5:$6');
 }
 
 /**

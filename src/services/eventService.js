@@ -104,10 +104,28 @@ export async function closeEvent(eventId) {
       };
     }
     
+    // Update all check-ins with status 'checked-in' to 'incomplete'
+    // (those who never checked out)
+    const { data: updateData, error: updateError } = await supabase
+      .from('checkins')
+      .update({ status: 'incomplete' })
+      .eq('event_id', eventId)
+      .eq('status', 'checked-in')
+      .select();
+    
+    if (updateError) {
+      console.error('⚠️ Failed to update incomplete check-in statuses:', updateError);
+      // Don't fail the event closure if status update fails
+    } else {
+      const incompleteCount = updateData?.length || 0;
+      console.log(`✅ Marked ${incompleteCount} check-ins as 'incomplete'`);
+    }
+    
     console.log(`✅ Event closed successfully: ${eventId}`);
     return {
       success: true,
       data,
+      incompleteCheckIns: updateData?.length || 0,
     };
   } catch (err) {
     console.error('❌ Unexpected error closing event:', err);
