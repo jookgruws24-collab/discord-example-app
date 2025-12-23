@@ -48,7 +48,7 @@ export async function handleCreateEventCommand(interaction) {
     }
     
     // Create event channel
-    const channelName = `event-${eventName.toLowerCase().replace(/\s+/g, '-')}`;
+    const channelName = eventName.toLowerCase().replace(/\s+/g, '-');
     let channel;
     
     try {
