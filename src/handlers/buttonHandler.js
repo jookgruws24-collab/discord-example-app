@@ -73,10 +73,24 @@ export async function handleCheckInButton(interaction) {
       return;
     }
     
-    // Create check-in record
-    const result = await createCheckIn(eventId, interaction.user);
+    // Create check-in record (with mandatory IGN validation)
+    const result = await createCheckIn(eventId, interaction.guildId, interaction.user);
     
     if (!result.success) {
+      // Handle no IGN set (mandatory requirement)
+      if (result.error === 'no_ign') {
+        await interaction.editReply({
+          content: '❌ **In-Game Name Required**\n\n' +
+                   'You must set your in-game name before checking in to events.\n\n' +
+                   '**How to set your IGN:**\n' +
+                   '1. Use the `/set-ign` command\n' +
+                   '2. Enter your in-game name\n' +
+                   '3. Try checking in again\n\n' +
+                   '_Your IGN will be displayed when you check in._',
+        });
+        return;
+      }
+      
       // Handle duplicate check-in
       if (result.error === 'duplicate') {
         await interaction.editReply({
@@ -92,10 +106,10 @@ export async function handleCheckInButton(interaction) {
       return;
     }
     
-    // Post announcement in channel
+    // Post announcement in channel with IGN
     const announcementPosted = await postCheckInAnnouncement(
       interaction.channel,
-      interaction.user,
+      result.displayName, // Use IGN instead of username
       result.data.timestamp
     );
     
@@ -105,7 +119,7 @@ export async function handleCheckInButton(interaction) {
     
     // Confirm check-in to user
     await interaction.editReply({
-      content: '✅ Successfully checked in! Your attendance has been recorded.',
+      content: `✅ Successfully checked in as **${result.displayName}**! Your attendance has been recorded.`,
     });
     
     console.log(`✅ Check-in complete for ${interaction.user.tag}`);

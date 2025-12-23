@@ -1,0 +1,236 @@
+{
+  "command": "remove-ign",
+  "version": "1.0",
+  "type": "CHAT_INPUT",
+  "description": "Remove your in-game name and use Discord username",
+  "dm_permission": false,
+  "options": [],
+  "handler": {
+    "file": "src/commands/removeIgn.js",
+    "function": "handleRemoveIgnCommand"
+  },
+  "permissions": {
+    "required": [],
+    "admin_only": false
+  },
+  "responses": {
+    "success": {
+      "type": "ephemeral",
+      "content": "✅ Your IGN has been removed. You'll use your Discord username in events.",
+      "example": "✅ Your IGN has been removed. You'll use your Discord username in events.",
+      "note": "Ephemeral ensures privacy"
+    },
+    "errors": {
+      "not_found": {
+        "type": "ephemeral",
+        "content": "ℹ️ You don't have an IGN set in this server.",
+        "trigger": "No row in user_igns for (user_id, guild_id)"
+      },
+      "database_error": {
+        "type": "ephemeral",
+        "content": "❌ Failed to remove your IGN. Please try again.",
+        "trigger": "Database connection failure or unexpected database error"
+      },
+      "unexpected_error": {
+        "type": "ephemeral",
+        "content": "❌ An unexpected error occurred. Please try again.",
+        "trigger": "Uncaught exception in handler"
+      }
+    }
+  },
+  "database_operations": [
+    {
+      "step": 1,
+      "operation": "DELETE",
+      "table": "user_igns",
+      "query": "DELETE FROM user_igns WHERE user_id = $1 AND guild_id = $2 RETURNING ign",
+      "parameters": [
+        "interaction.user.id",
+        "interaction.guildId"
+      ],
+      "returns": {
+        "deleted": "{ ign: string } (the deleted IGN)",
+        "not_found": "null (no matching row to delete)"
+      },
+      "description": "Delete user's IGN for current server, return deleted IGN for confirmation message"
+    }
+  ],
+  "service_layer": {
+    "module": "src/services/ignService.js",
+    "function": "removeIgn",
+    "parameters": {
+      "userId": "string (Discord user ID)",
+      "guildId": "string (Discord guild ID)"
+    },
+    "returns": {
+      "success": {
+        "success": true,
+        "data": "{ ign: string } (the removed IGN)"
+      },
+      "not_found": {
+        "success": false,
+        "error": "not_found",
+        "message": "You don't have an IGN set in this server."
+      },
+      "error": {
+        "success": false,
+        "error": "string (database|unexpected)",
+        "message": "string (user-friendly error message)"
+      }
+    }
+  },
+  "behavior": {
+    "ephemeral": true,
+    "reason": "IGN removal is user-specific action, should not be visible to others",
+    "side_effects": {
+      "future_checkins": "User will check in with Discord username instead of IGN",
+      "past_checkins": "Historical check-in records retain the old IGN (immutable)",
+      "exports": "Past event exports still show old IGN (historical accuracy preserved)"
+    },
+    "performance": {
+      "target": "<200ms total",
+      "breakdown": {
+        "database_delete": "<50ms (indexed delete)",
+        "discord_reply": "<150ms"
+      }
+    }
+  },
+  "examples": {
+    "scenarios": [
+      {
+        "description": "User removes existing IGN",
+        "database_state_before": {
+          "user_igns": [
+            {
+              "user_id": "123456789012345678",
+              "guild_id": "111111111111111111",
+              "ign": "ProGamer",
+              "updated_at": "2025-12-23T10:00:00Z"
+            }
+          ]
+        },
+        "action": "User '123456789012345678' runs /remove-ign in guild '111111111111111111'",
+        "database_state_after": {
+          "user_igns": []
+        },
+        "response": "✅ Your IGN has been removed. You'll use your Discord username in events."
+      },
+      {
+        "description": "User attempts to remove non-existent IGN",
+        "database_state_before": {
+          "user_igns": []
+        },
+        "action": "User '123456789012345678' runs /remove-ign in guild '111111111111111111'",
+        "database_state_after": {
+          "user_igns": []
+        },
+        "response": "ℹ️ You don't have an IGN set in this server."
+      },
+      {
+        "description": "User removes IGN in server A (IGN in server B unaffected)",
+        "database_state_before": {
+          "user_igns": [
+            {
+              "user_id": "123456789012345678",
+              "guild_id": "111111111111111111",
+              "ign": "ProGamer",
+              "updated_at": "2025-12-23T10:00:00Z"
+            },
+            {
+              "user_id": "123456789012345678",
+              "guild_id": "222222222222222222",
+              "ign": "CasualPlayer",
+              "updated_at": "2025-12-23T11:00:00Z"
+            }
+          ]
+        },
+        "action": "User '123456789012345678' runs /remove-ign in guild '111111111111111111'",
+        "database_state_after": {
+          "user_igns": [
+            {
+              "user_id": "123456789012345678",
+              "guild_id": "222222222222222222",
+              "ign": "CasualPlayer",
+              "updated_at": "2025-12-23T11:00:00Z"
+            }
+          ]
+        },
+        "response": "✅ Your IGN has been removed. You'll use your Discord username in events.",
+        "note": "IGN in server B remains intact (server-specific operation)"
+      }
+    ]
+  },
+  "test_cases": [
+    {
+      "scenario": "Remove existing IGN",
+      "precondition": "User has IGN 'ProGamer' in current server",
+      "action": "/remove-ign",
+      "expected": "✅ Your IGN has been removed. You'll use your Discord username in events.",
+      "verify": "Subsequent /view-ign returns 'not set' message",
+      "priority": "P3"
+    },
+    {
+      "scenario": "Remove when no IGN set",
+      "precondition": "User has no IGN in current server",
+      "action": "/remove-ign",
+      "expected": "ℹ️ You don't have an IGN set in this server.",
+      "priority": "P3"
+    },
+    {
+      "scenario": "Remove IGN then check in to event",
+      "precondition": "User has IGN 'ProGamer', removes it",
+      "action": "/remove-ign, then check in to event",
+      "expected": "Check-in announcement shows Discord username, not IGN",
+      "verify": "Check-in record has ign=NULL",
+      "priority": "P3"
+    },
+    {
+      "scenario": "Historical check-ins preserve old IGN",
+      "precondition": "User checked in as 'ProGamer', then removes IGN",
+      "action": "/remove-ign, then admin exports old event",
+      "expected": "CSV export shows 'ProGamer' for old check-in (historical accuracy)",
+      "priority": "P3"
+    },
+    {
+      "scenario": "Remove IGN in one server doesn't affect other servers",
+      "precondition": "User has 'ProGamer' in server A, 'CasualPlayer' in server B",
+      "action": "/remove-ign (in server A)",
+      "expected": "IGN removed in server A, /view-ign in server B still shows 'CasualPlayer'",
+      "priority": "P3"
+    },
+    {
+      "scenario": "Remove IGN twice (idempotent)",
+      "precondition": "User has IGN 'ProGamer'",
+      "action": "/remove-ign, then /remove-ign again",
+      "expected": "First: success message, Second: 'not set' message (no error)",
+      "priority": "Edge case"
+    },
+    {
+      "scenario": "Database connection failure",
+      "precondition": "Database is unavailable",
+      "action": "/remove-ign",
+      "expected": "❌ Failed to remove your IGN. Please try again.",
+      "priority": "Edge case"
+    }
+  ],
+  "user_stories": [
+    {
+      "story": "User Story 4 - Remove IGN",
+      "priority": "P3",
+      "acceptance_scenarios": [
+        "Given a user has set an IGN, When they use the remove-IGN command, Then the system deletes their IGN and confirms removal",
+        "Given a user has removed their IGN, When they check into an event, Then their Discord username is displayed",
+        "Given a user has not set an IGN, When they attempt to remove their IGN, Then the system informs them that no IGN is currently set"
+      ]
+    }
+  ],
+  "functional_requirements": [
+    "FR-007: System MUST provide a slash command for users to remove their in-game name"
+  ],
+  "data_integrity": {
+    "cascading_deletes": "None - check-in records are immutable and retain old IGN",
+    "future_behavior": "User will check in with Discord username (ign=NULL in checkins table)",
+    "historical_preservation": "Past check-in records with IGN remain unchanged",
+    "idempotency": "Calling /remove-ign when no IGN exists returns informative message, not error"
+  }
+}

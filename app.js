@@ -6,6 +6,12 @@ import { startEventScheduler } from './src/handlers/eventScheduler.js';
 import { handleCreateEventCommand } from './src/commands/createEvent.js';
 import { handleCloseEventCommand } from './src/commands/closeEvent.js';
 import { handleExportEventCommand } from './src/commands/exportEvent.js';
+import { handleSetIgnCommand } from './src/commands/setIgn.js';
+import { handleViewIgnCommand } from './src/commands/viewIgn.js';
+import { handleRemoveIgnCommand } from './src/commands/removeIgn.js';
+import { handleClearCheckInsCommand } from './src/commands/clearCheckIns.js';
+import { handleMyUserIdCommand } from './src/commands/myUserId.js';
+import { handleHelpCommand } from './src/commands/help.js';
 
 // Create Discord client with required intents
 const client = new Client({
@@ -59,6 +65,30 @@ client.on('interactionCreate', async (interaction) => {
           
         case 'export-event':
           await handleExportEventCommand(interaction);
+          break;
+          
+        case 'set-ign':
+          await handleSetIgnCommand(interaction);
+          break;
+          
+        case 'view-ign':
+          await handleViewIgnCommand(interaction);
+          break;
+          
+        case 'remove-ign':
+          await handleRemoveIgnCommand(interaction);
+          break;
+          
+        case 'clear-checkins':
+          await handleClearCheckInsCommand(interaction);
+          break;
+          
+        case 'my-user-id':
+          await handleMyUserIdCommand(interaction);
+          break;
+          
+        case 'help':
+          await handleHelpCommand(interaction);
           break;
           
         default:

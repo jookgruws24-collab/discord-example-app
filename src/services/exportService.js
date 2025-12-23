@@ -67,6 +67,7 @@ export async function generateExportData(eventId) {
         userId: checkIn.user_id,
         username: checkIn.username,
         discriminator: checkIn.discriminator || '',
+        ign: checkIn.ign || '', // IGN from check-in snapshot (NULL for pre-IGN records)
         checkInTime: checkIn.timestamp,
         checkOutTime: checkOut ? checkOut.timestamp : null,
       };
@@ -80,6 +81,7 @@ export async function generateExportData(eventId) {
           userId: userId,
           username: '', // Username not available for check-out-only records
           discriminator: '',
+          ign: '', // IGN not available for check-out-only records
           checkInTime: null,
           checkOutTime: checkOut.timestamp,
         });
@@ -109,8 +111,8 @@ export async function generateExportData(eventId) {
  * @returns {string} - CSV formatted string
  */
 export function formatAsCSV(data) {
-  // CSV Headers (per FR-018)
-  const headers = ['User ID', 'Username', 'Discriminator', 'Check-In Time', 'Check-Out Time'];
+  // CSV Headers - includes IGN column
+  const headers = ['User ID', 'Username', 'Discriminator', 'IGN', 'Check-In Time', 'Check-Out Time'];
   
   // Format header row
   const csvRows = [headers.join(',')];
@@ -121,6 +123,7 @@ export function formatAsCSV(data) {
       escapeCSVField(row.userId),
       escapeCSVField(row.username),
       escapeCSVField(row.discriminator),
+      escapeCSVField(row.ign), // IGN column (empty string for NULL/pre-IGN records)
       row.checkInTime ? formatTimestamp(row.checkInTime) : '',
       row.checkOutTime ? formatTimestamp(row.checkOutTime) : '',
     ];

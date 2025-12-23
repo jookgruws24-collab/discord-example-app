@@ -1,0 +1,217 @@
+{
+  "command": "set-ign",
+  "version": "1.0",
+  "type": "CHAT_INPUT",
+  "description": "Set your in-game name for this server",
+  "dm_permission": false,
+  "options": [
+    {
+      "type": 3,
+      "name": "name",
+      "description": "Your in-game name (max 32 chars, letters/numbers/spaces/._- only)",
+      "required": true,
+      "max_length": 32,
+      "min_length": 1
+    }
+  ],
+  "handler": {
+    "file": "src/commands/setIgn.js",
+    "function": "handleSetIgnCommand"
+  },
+  "permissions": {
+    "required": [],
+    "admin_only": false
+  },
+  "responses": {
+    "success": {
+      "type": "ephemeral",
+      "content": "✅ Your IGN has been set to **{ign}**",
+      "example": "✅ Your IGN has been set to **ProGamer**"
+    },
+    "update_success": {
+      "type": "ephemeral",
+      "content": "✅ Your IGN has been updated to **{ign}**",
+      "example": "✅ Your IGN has been updated to **CasualPlayer**"
+    },
+    "errors": {
+      "validation_empty": {
+        "type": "ephemeral",
+        "content": "❌ IGN cannot be empty or only whitespace",
+        "trigger": "User provides whitespace-only input after trim"
+      },
+      "validation_length": {
+        "type": "ephemeral",
+        "content": "❌ IGN too long: {actual}/32 characters",
+        "example": "❌ IGN too long: 45/32 characters",
+        "trigger": "User provides IGN exceeding 32 characters"
+      },
+      "validation_characters": {
+        "type": "ephemeral",
+        "content": "❌ Invalid IGN: {reason}\\nAllowed: letters, numbers, spaces, and ._- symbols (max 32 chars)",
+        "example": "❌ Invalid IGN: contains emoji\\nAllowed: letters, numbers, spaces, and ._- symbols (max 32 chars)",
+        "trigger": "User provides IGN with disallowed characters"
+      },
+      "duplicate": {
+        "type": "ephemeral",
+        "content": "❌ The IGN **{ign}** is already taken in this server",
+        "example": "❌ The IGN **ProGamer** is already taken in this server",
+        "trigger": "Another user in the same server already has this IGN (case-insensitive)"
+      },
+      "database_error": {
+        "type": "ephemeral",
+        "content": "❌ Failed to save your IGN. Please try again.",
+        "trigger": "Database connection failure or unexpected database error"
+      },
+      "unexpected_error": {
+        "type": "ephemeral",
+        "content": "❌ An unexpected error occurred. Please try again.",
+        "trigger": "Uncaught exception in handler"
+      }
+    }
+  },
+  "database_operations": [
+    {
+      "step": 1,
+      "operation": "UPSERT",
+      "table": "user_igns",
+      "query": "INSERT INTO user_igns (user_id, guild_id, ign, updated_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (user_id, guild_id) DO UPDATE SET ign = EXCLUDED.ign, updated_at = NOW() RETURNING *",
+      "parameters": [
+        "interaction.user.id",
+        "interaction.guildId",
+        "validated_ign"
+      ],
+      "description": "Insert new IGN or update existing IGN for user in this server"
+    }
+  ],
+  "service_layer": {
+    "module": "src/services/ignService.js",
+    "function": "setIgn",
+    "parameters": {
+      "userId": "string (Discord user ID)",
+      "guildId": "string (Discord guild ID)",
+      "ign": "string (user input, will be validated and trimmed)"
+    },
+    "returns": {
+      "success": {
+        "success": true,
+        "data": "{ user_id, guild_id, ign, updated_at }"
+      },
+      "error": {
+        "success": false,
+        "error": "string (validation|duplicate|database|unexpected)",
+        "message": "string (user-friendly error message)"
+      }
+    }
+  },
+  "validation": {
+    "order": [
+      "trim_whitespace",
+      "check_empty",
+      "check_length",
+      "check_characters"
+    ],
+    "rules": [
+      {
+        "name": "trim_whitespace",
+        "description": "Remove leading and trailing spaces",
+        "implementation": "ign.trim()",
+        "requirement": "FR-009"
+      },
+      {
+        "name": "check_empty",
+        "description": "Reject if empty after trim",
+        "pattern": "trimmed.length === 0",
+        "error": "IGN cannot be empty or only whitespace"
+      },
+      {
+        "name": "check_length",
+        "description": "Maximum 32 characters",
+        "pattern": "trimmed.length > 32",
+        "error": "IGN too long: {actual}/32 characters",
+        "requirement": "FR-008"
+      },
+      {
+        "name": "check_characters",
+        "description": "Alphanumeric, spaces, and ._- only",
+        "pattern": "/^[a-zA-Z0-9\\s._-]+$/",
+        "error": "Invalid IGN: contains disallowed characters",
+        "requirement": "FR-008a"
+      }
+    ]
+  },
+  "examples": {
+    "valid": [
+      "ProGamer",
+      "Player_123",
+      "Mr. Smith",
+      "Dark-Knight",
+      "xX_Gamer_Xx"
+    ],
+    "invalid": [
+      {
+        "input": "🎮Player",
+        "reason": "Contains emoji"
+      },
+      {
+        "input": "Player#1234",
+        "reason": "Contains # symbol"
+      },
+      {
+        "input": "A".repeat(50),
+        "reason": "Exceeds 32 characters"
+      },
+      {
+        "input": "   ",
+        "reason": "Empty after trim"
+      },
+      {
+        "input": "Player<script>",
+        "reason": "Contains < and > symbols"
+      }
+    ]
+  },
+  "test_cases": [
+    {
+      "scenario": "First-time IGN set",
+      "precondition": "User has no IGN in database",
+      "action": "/set-ign name:ProGamer",
+      "expected": "✅ Your IGN has been set to **ProGamer**"
+    },
+    {
+      "scenario": "Update existing IGN",
+      "precondition": "User already has IGN 'OldName'",
+      "action": "/set-ign name:NewName",
+      "expected": "✅ Your IGN has been updated to **NewName**"
+    },
+    {
+      "scenario": "Duplicate IGN attempt",
+      "precondition": "Another user has IGN 'ProGamer' in this server",
+      "action": "/set-ign name:ProGamer",
+      "expected": "❌ The IGN **ProGamer** is already taken in this server"
+    },
+    {
+      "scenario": "Case-insensitive duplicate",
+      "precondition": "Another user has IGN 'ProGamer'",
+      "action": "/set-ign name:progamer",
+      "expected": "❌ The IGN **progamer** is already taken in this server"
+    },
+    {
+      "scenario": "IGN with trailing spaces",
+      "precondition": "User has no IGN",
+      "action": "/set-ign name:'  Player  '",
+      "expected": "✅ Your IGN has been set to **Player**"
+    },
+    {
+      "scenario": "IGN too long",
+      "precondition": "User has no IGN",
+      "action": "/set-ign name:ThisIsAnExtremelyLongInGameNameThatExceedsTheLimit",
+      "expected": "❌ IGN too long: 53/32 characters"
+    },
+    {
+      "scenario": "IGN with emoji",
+      "precondition": "User has no IGN",
+      "action": "/set-ign name:Pro🎮Gamer",
+      "expected": "❌ Invalid IGN: contains disallowed characters\\nAllowed: letters, numbers, spaces, and ._- symbols (max 32 chars)"
+    }
+  ]
+}
