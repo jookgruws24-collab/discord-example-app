@@ -74,8 +74,36 @@ export function getAdminConfig() {
   };
 }
 
+/**
+ * Validate admin role exists in guild
+ * Should be called on bot startup or when joining guilds
+ * 
+ * @param {Object} guild - Discord guild object
+ * @returns {boolean} - True if valid or not configured
+ */
+export async function validateAdminRole(guild) {
+  if (!ADMIN_ROLE_ID) {
+    console.log(`ℹ️ No admin role configured for guild ${guild.name}`);
+    return true;
+  }
+  
+  try {
+    const role = await guild.roles.fetch(ADMIN_ROLE_ID);
+    if (!role) {
+      console.error(`⚠️ SECURITY WARNING: Admin role ${ADMIN_ROLE_ID} not found in guild ${guild.name}. Only server owner will have admin access.`);
+      return false;
+    }
+    console.log(`✅ Admin role validated for guild ${guild.name}: ${role.name}`);
+    return true;
+  } catch (error) {
+    console.error(`⚠️ Error validating admin role in guild ${guild.name}:`, error);
+    return false;
+  }
+}
+
 export default {
   isAdmin,
   createAdminOnlyResponse,
   getAdminConfig,
+  validateAdminRole,
 };

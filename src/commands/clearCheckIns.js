@@ -1,5 +1,6 @@
 import { supabase } from '../database/supabase.js';
 import { getIgn } from '../services/ignService.js';
+import { isAdmin, createAdminOnlyResponse } from '../config/permissions.js';
 
 /**
  * /clear-checkins Command Handler (Admin Only)
@@ -14,12 +15,9 @@ import { getIgn } from '../services/ignService.js';
 
 export async function handleClearCheckInsCommand(interaction) {
   try {
-    // Check if user has administrator permission
-    if (!interaction.memberPermissions?.has('Administrator')) {
-      await interaction.reply({
-        content: '❌ **Permission Denied**\n\nThis command requires Administrator permission.',
-        ephemeral: true,
-      });
+    // Check if user has admin permissions using centralized function
+    if (!isAdmin(interaction)) {
+      await interaction.reply(createAdminOnlyResponse());
       return;
     }
     
@@ -27,6 +25,16 @@ export async function handleClearCheckInsCommand(interaction) {
     const targetUserId = interaction.options.getString('user_id');
     const providedIgn = interaction.options.getString('ign');
     const guildId = interaction.guildId;
+    
+    // Validate Discord snowflake format (17-19 digits)
+    if (!/^\d{17,19}$/.test(targetUserId)) {
+      await interaction.reply({
+        content: '❌ **Invalid User ID**\n\nUser ID must be a valid Discord snowflake (17-19 digits).\n\n' +
+                 '💡 Use `/my-user-id` to see your user ID format.',
+        ephemeral: true,
+      });
+      return;
+    }
     
     console.log(`📋 /clear-checkins: Admin ${interaction.user.tag} clearing check-ins for user ${targetUserId} with IGN verification "${providedIgn}"`);
     

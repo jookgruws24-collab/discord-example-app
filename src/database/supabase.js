@@ -13,6 +13,20 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
+// Security check: Ensure anon key is used (starts with 'eyJ')
+// Service keys should NEVER be used in bot applications
+if (!supabaseKey.startsWith('eyJ')) {
+  throw new Error(
+    '⚠️ SECURITY ERROR: SUPABASE_KEY must be an anon key, not a service key. ' +
+    'Service keys bypass Row Level Security and should never be used in bot applications.'
+  );
+}
+
+// Validate HTTPS URL
+if (!supabaseUrl.startsWith('https://')) {
+  throw new Error('SUPABASE_URL must use HTTPS protocol');
+}
+
 // Create Supabase client
 // Using anon key for Row Level Security (RLS) compliance
 // The client will automatically handle connection pooling

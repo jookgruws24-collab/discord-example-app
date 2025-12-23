@@ -12,6 +12,8 @@ import { handleRemoveIgnCommand } from './src/commands/removeIgn.js';
 import { handleClearCheckInsCommand } from './src/commands/clearCheckIns.js';
 import { handleMyUserIdCommand } from './src/commands/myUserId.js';
 import { handleHelpCommand } from './src/commands/help.js';
+import { commandRateLimiter, buttonRateLimiter } from './src/utils/rateLimiter.js';
+import { validateAdminRole } from './src/config/permissions.js';
 
 // Create Discord client with required intents
 const client = new Client({
@@ -36,6 +38,12 @@ client.once('ready', async () => {
     console.error('⚠️  WARNING: Database connection failed. Check your SUPABASE_URL and SUPABASE_KEY in .env');
   }
   
+  // Validate admin role in all guilds
+  console.log('\n🔐 Validating admin role configuration...');
+  for (const guild of client.guilds.cache.values()) {
+    await validateAdminRole(guild);
+  }
+  
   // Start event scheduler
   console.log('\n⏰ Starting event scheduler...');
   startEventScheduler(client);
@@ -47,6 +55,30 @@ client.once('ready', async () => {
 // Handle interaction create (slash commands and buttons)
 client.on('interactionCreate', async (interaction) => {
   try {
+    // Rate limiting check for commands
+    if (interaction.isChatInputCommand()) {
+      const rateLimitResult = commandRateLimiter.check(interaction.user.id);
+      if (rateLimitResult.limited) {
+        await interaction.reply({
+          content: `⏳ You're doing that too fast! Please wait ${rateLimitResult.retryAfter} seconds.`,
+          ephemeral: true,
+        });
+        return;
+      }
+    }
+    
+    // Rate limiting check for buttons
+    if (interaction.isButton()) {
+      const rateLimitResult = buttonRateLimiter.check(interaction.user.id);
+      if (rateLimitResult.limited) {
+        await interaction.reply({
+          content: `⏳ You're clicking too fast! Please wait ${rateLimitResult.retryAfter} seconds.`,
+          ephemeral: true,
+        });
+        return;
+      }
+    }
+    
     // Handle slash commands
     if (interaction.isChatInputCommand()) {
       const { commandName } = interaction;

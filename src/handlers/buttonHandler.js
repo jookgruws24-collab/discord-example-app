@@ -53,6 +53,15 @@ export async function handleCheckInButton(interaction) {
       return;
     }
     
+    // SECURITY: Validate interaction channel matches event channel
+    if (interaction.channelId !== event.channel_id) {
+      console.warn(`⚠️ Security: User ${interaction.user.tag} attempted to use check-in button from wrong channel`);
+      await interaction.editReply({
+        content: '❌ This button can only be used in the event channel.',
+      });
+      return;
+    }
+    
     // Check if event has started
     const now = new Date();
     const startTime = new Date(event.start_time);
@@ -176,6 +185,15 @@ export async function handleCheckOutButton(interaction) {
       return;
     }
     
+    // SECURITY: Validate interaction channel matches event channel
+    if (interaction.channelId !== event.channel_id) {
+      console.warn(`⚠️ Security: User ${interaction.user.tag} attempted to use check-out button from wrong channel`);
+      await interaction.editReply({
+        content: '❌ This button can only be used in the event channel.',
+      });
+      return;
+    }
+    
     // Check if event is closed
     if (event.status !== 'closed') {
       await interaction.editReply({
@@ -274,6 +292,15 @@ export async function handleCloseEventButton(interaction) {
       console.error('❌ Event not found:', eventId);
       await interaction.editReply({
         content: '❌ Event not found. It may have been deleted.',
+      });
+      return;
+    }
+    
+    // SECURITY: Validate interaction channel matches event channel
+    if (interaction.channelId !== event.channel_id) {
+      console.warn(`⚠️ Security: User ${interaction.user.tag} attempted to use close button from wrong channel`);
+      await interaction.editReply({
+        content: '❌ This button can only be used in the event channel.',
       });
       return;
     }
