@@ -165,7 +165,8 @@ export async function handleCreateEventCommand(interaction) {
       content: `✅ Event created successfully!\n\n` +
                `**Channel:** ${channel}\n` +
                `**Event Name:** ${eventName}\n` +
-               `**Start Time:** ${startTime.toLocaleString()}\n` +
+               `**Start Time (UTC+7):** ${utc7Time}\n` +
+               `**Start Time (UTC+8):** ${utc8Time}\n` +
                `**Event ID:** \`${eventId}\`\n\n` +
                `The check-in button will automatically enable at the start time.`,
     });
