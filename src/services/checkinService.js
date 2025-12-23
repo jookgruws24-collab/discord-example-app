@@ -1,4 +1,5 @@
 import { supabase } from '../database/supabase.js';
+import { getIgn } from './ignService.js';
 
 /**
  * Check-In Service
@@ -7,6 +8,7 @@ import { supabase } from '../database/supabase.js';
  * Features:
  * - Record user check-ins to Supabase database
  * - Prevent duplicate check-ins per user per event
+ * - Mandatory IGN validation before check-in
  * - Post announcement messages when users check in
  */
 
@@ -14,24 +16,42 @@ import { supabase } from '../database/supabase.js';
  * Create a check-in record in the database
  * 
  * @param {string} eventId - UUID of the event
+ * @param {string} guildId - Discord guild/server ID
  * @param {Object} user - Discord user object
  * @param {string} user.id - Discord user ID
  * @param {string} user.username - Discord username
  * @param {string} user.discriminator - Discord discriminator (may be '0')
- * @returns {Promise<Object>} - Check-in record or error
+ * @returns {Promise<Object>} - Check-in record with displayName or error
  */
-export async function createCheckIn(eventId, user) {
+export async function createCheckIn(eventId, guildId, user) {
   try {
     console.log(`📝 Creating check-in for user ${user.username} (${user.id}) at event ${eventId}`);
     
-    // Insert check-in record
+    // MANDATORY: Query user IGN before allowing check-in
+    const ignResult = await getIgn(user.id, guildId);
+    
+    // Block check-in if IGN not found
+    if (!ignResult.success || !ignResult.ign) {
+      console.log(`⚠️ Check-in blocked: User ${user.username} has no IGN set`);
+      return {
+        success: false,
+        error: 'no_ign',
+        message: 'You must set your in-game name first. Use `/set-ign` to set your IGN before checking in.',
+      };
+    }
+    
+    const userIgn = ignResult.ign;
+    console.log(`✅ IGN found for user: "${userIgn}"`);
+    
+    // Insert check-in record with IGN
     const { data, error } = await supabase
       .from('checkins')
       .insert({
         event_id: eventId,
         user_id: user.id,
         username: user.username,
-        discriminator: user.discriminator === '0' ? null : user.discriminator, // Handle new username system
+        discriminator: user.discriminator === '0' ? null : user.discriminator,
+        ign: userIgn, // Store IGN snapshot at check-in time
         timestamp: new Date().toISOString(),
       })
       .select()
@@ -60,6 +80,7 @@ export async function createCheckIn(eventId, user) {
     return {
       success: true,
       data,
+      displayName: userIgn, // Return IGN for announcement
     };
   } catch (err) {
     console.error('❌ Unexpected error creating check-in:', err);
@@ -75,13 +96,13 @@ export async function createCheckIn(eventId, user) {
  * Post check-in announcement message in the event channel
  * 
  * @param {Object} channel - Discord channel object
- * @param {Object} user - Discord user object
+ * @param {string} displayName - Display name (IGN) to show in announcement
  * @param {string} timestamp - ISO timestamp of check-in
  * @returns {Promise<boolean>} - True if announcement posted successfully
  */
-export async function postCheckInAnnouncement(channel, user, timestamp) {
+export async function postCheckInAnnouncement(channel, displayName, timestamp) {
   try {
-    console.log(`📢 Posting check-in announcement for ${user.username} in channel ${channel.id}`);
+    console.log(`📢 Posting check-in announcement for ${displayName} in channel ${channel.id}`);
     
     // Format timestamp for display
     const date = new Date(timestamp);
@@ -92,9 +113,9 @@ export async function postCheckInAnnouncement(channel, user, timestamp) {
       hour12: true,
     });
     
-    // Post announcement message
+    // Post announcement message with IGN
     await channel.send({
-      content: `✅ **${user.username}** checked in at **${timeString}**`,
+      content: `✅ **${displayName}** checked in at **${timeString}**`,
     });
     
     console.log(`✅ Check-in announcement posted successfully`);

@@ -1,0 +1,187 @@
+{
+  "command": "view-ign",
+  "version": "1.0",
+  "type": "CHAT_INPUT",
+  "description": "View your current in-game name for this server",
+  "dm_permission": false,
+  "options": [],
+  "handler": {
+    "file": "src/commands/viewIgn.js",
+    "function": "handleViewIgnCommand"
+  },
+  "permissions": {
+    "required": [],
+    "admin_only": false
+  },
+  "responses": {
+    "success": {
+      "type": "ephemeral",
+      "content": "🎮 Your IGN in this server is **{ign}**",
+      "example": "🎮 Your IGN in this server is **ProGamer**",
+      "note": "Ephemeral ensures privacy - only user sees their own IGN"
+    },
+    "errors": {
+      "not_found": {
+        "type": "ephemeral",
+        "content": "ℹ️ You haven't set an IGN in this server yet.\\nUse `/set-ign` to set one!",
+        "trigger": "No row in user_igns for (user_id, guild_id)"
+      },
+      "database_error": {
+        "type": "ephemeral",
+        "content": "❌ Failed to retrieve your IGN. Please try again.",
+        "trigger": "Database connection failure or unexpected database error"
+      },
+      "unexpected_error": {
+        "type": "ephemeral",
+        "content": "❌ An unexpected error occurred. Please try again.",
+        "trigger": "Uncaught exception in handler"
+      }
+    }
+  },
+  "database_operations": [
+    {
+      "step": 1,
+      "operation": "SELECT",
+      "table": "user_igns",
+      "query": "SELECT ign FROM user_igns WHERE user_id = $1 AND guild_id = $2",
+      "parameters": [
+        "interaction.user.id",
+        "interaction.guildId"
+      ],
+      "returns": {
+        "found": "{ ign: string }",
+        "not_found": "null (no matching row)"
+      },
+      "description": "Lookup IGN for current user in current server"
+    }
+  ],
+  "service_layer": {
+    "module": "src/services/ignService.js",
+    "function": "getIgn",
+    "parameters": {
+      "userId": "string (Discord user ID)",
+      "guildId": "string (Discord guild ID)"
+    },
+    "returns": {
+      "success": {
+        "success": true,
+        "data": "{ ign: string }"
+      },
+      "not_found": {
+        "success": false,
+        "error": "not_found",
+        "message": "You haven't set an IGN in this server yet."
+      },
+      "error": {
+        "success": false,
+        "error": "string (database|unexpected)",
+        "message": "string (user-friendly error message)"
+      }
+    }
+  },
+  "behavior": {
+    "ephemeral": true,
+    "reason": "IGN is user-specific data, should not be visible to others in the channel",
+    "performance": {
+      "target": "<200ms total",
+      "breakdown": {
+        "database_query": "<50ms (indexed lookup)",
+        "discord_reply": "<150ms"
+      }
+    }
+  },
+  "examples": {
+    "scenarios": [
+      {
+        "description": "User has IGN set",
+        "database_state": {
+          "user_igns": [
+            {
+              "user_id": "123456789012345678",
+              "guild_id": "111111111111111111",
+              "ign": "ProGamer",
+              "updated_at": "2025-12-23T10:00:00Z"
+            }
+          ]
+        },
+        "action": "User '123456789012345678' runs /view-ign in guild '111111111111111111'",
+        "response": "🎮 Your IGN in this server is **ProGamer**"
+      },
+      {
+        "description": "User has no IGN set",
+        "database_state": {
+          "user_igns": []
+        },
+        "action": "User '123456789012345678' runs /view-ign in guild '111111111111111111'",
+        "response": "ℹ️ You haven't set an IGN in this server yet.\\nUse `/set-ign` to set one!"
+      },
+      {
+        "description": "User has IGN in different server",
+        "database_state": {
+          "user_igns": [
+            {
+              "user_id": "123456789012345678",
+              "guild_id": "222222222222222222",
+              "ign": "ProGamer",
+              "updated_at": "2025-12-23T10:00:00Z"
+            }
+          ]
+        },
+        "action": "User '123456789012345678' runs /view-ign in guild '111111111111111111'",
+        "response": "ℹ️ You haven't set an IGN in this server yet.\\nUse `/set-ign` to set one!",
+        "note": "IGNs are server-specific, not global"
+      }
+    ]
+  },
+  "test_cases": [
+    {
+      "scenario": "View existing IGN",
+      "precondition": "User has IGN 'ProGamer' in current server",
+      "action": "/view-ign",
+      "expected": "🎮 Your IGN in this server is **ProGamer**",
+      "priority": "P2"
+    },
+    {
+      "scenario": "View when no IGN set",
+      "precondition": "User has no IGN in current server",
+      "action": "/view-ign",
+      "expected": "ℹ️ You haven't set an IGN in this server yet.\\nUse `/set-ign` to set one!",
+      "priority": "P2"
+    },
+    {
+      "scenario": "View in server A after setting IGN in server B",
+      "precondition": "User has IGN 'ProGamer' in server B, but not in server A",
+      "action": "/view-ign (in server A)",
+      "expected": "ℹ️ You haven't set an IGN in this server yet.\\nUse `/set-ign` to set one!",
+      "priority": "P2"
+    },
+    {
+      "scenario": "View after updating IGN",
+      "precondition": "User had IGN 'OldName', updated to 'NewName'",
+      "action": "/view-ign",
+      "expected": "🎮 Your IGN in this server is **NewName**",
+      "priority": "P2"
+    },
+    {
+      "scenario": "Database connection failure",
+      "precondition": "Database is unavailable",
+      "action": "/view-ign",
+      "expected": "❌ Failed to retrieve your IGN. Please try again.",
+      "priority": "Edge case"
+    }
+  ],
+  "user_stories": [
+    {
+      "story": "User Story 3 - View Current IGN",
+      "priority": "P2",
+      "acceptance_scenarios": [
+        "Given a user has set an IGN, When they use the view-IGN command, Then the system displays their current IGN",
+        "Given a user has not set an IGN, When they use the view-IGN command, Then the system informs them that no IGN is currently set",
+        "Given a user is in a specific server, When they view their IGN, Then they see the IGN specific to that server, not IGNs from other servers"
+      ]
+    }
+  ],
+  "functional_requirements": [
+    "FR-006: System MUST provide a slash command for users to view their current in-game name"
+  ]
+}

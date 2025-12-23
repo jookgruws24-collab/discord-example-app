@@ -1,20 +1,20 @@
 import 'dotenv/config';
 import { REST, Routes } from 'discord.js';
 
-// Slash command definitions for Discord Event Check-In system
+// Same command definitions as commands.js
 const commands = [
   {
     name: 'create-event',
     description: 'Create a new event with check-in tracking (Admin only)',
     options: [
       {
-        type: 3, // STRING type
+        type: 3,
         name: 'name',
         description: 'Event name (e.g., "Team Meeting")',
         required: true,
       },
       {
-        type: 3, // STRING type
+        type: 3,
         name: 'start-time',
         description: 'Event start time (e.g., "2025-12-25 14:00")',
         required: true,
@@ -34,7 +34,7 @@ const commands = [
     description: 'Set or update your in-game name for this server',
     options: [
       {
-        type: 3, // STRING type
+        type: 3,
         name: 'name',
         description: 'Your in-game name (1-32 characters, letters/numbers/spaces/._- only)',
         required: true,
@@ -54,13 +54,13 @@ const commands = [
     description: 'Clear incomplete check-ins for a user (Admin only)',
     options: [
       {
-        type: 3, // STRING type
+        type: 3,
         name: 'user_id',
         description: 'Discord User ID to clear check-ins for',
         required: true,
       },
       {
-        type: 3, // STRING type
+        type: 3,
         name: 'ign',
         description: 'User\'s in-game name for verification',
         required: true,
@@ -77,26 +77,37 @@ const commands = [
   },
 ];
 
+// Get guild ID from command line argument
+const GUILD_ID = process.argv[2];
+
+if (!GUILD_ID) {
+  console.error('❌ Error: Guild ID is required!');
+  console.log('\n📋 Usage: node commands-guild.js <GUILD_ID>');
+  console.log('\n💡 To find your Guild ID:');
+  console.log('   1. Enable Developer Mode in Discord (Settings → Advanced → Developer Mode)');
+  console.log('   2. Right-click your server icon → Copy Server ID\n');
+  process.exit(1);
+}
+
 // Register commands with Discord API
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   try {
-    console.log('🔄 Started registering application (/) commands...\n');
+    console.log(`🔄 Started registering guild commands for server ${GUILD_ID}...\n`);
     
-    // Register commands globally
+    // Register commands for specific guild (instant update)
     await rest.put(
-      Routes.applicationCommands(process.env.DISCORD_APP_ID),
+      Routes.applicationGuildCommands(process.env.DISCORD_APP_ID, GUILD_ID),
       { body: commands },
     );
     
-    console.log('✅ Successfully registered application commands!\n');
+    console.log('✅ Successfully registered guild commands!\n');
     console.log('📋 Registered commands:');
     commands.forEach(cmd => {
       console.log(`   • /${cmd.name} - ${cmd.description}`);
     });
-    console.log('\n💡 Commands may take up to 1 hour to appear globally.');
-    console.log('💡 For instant testing, use guild-specific registration instead.\n');
+    console.log('\n✨ Commands should appear IMMEDIATELY in your Discord server!\n');
     
   } catch (error) {
     console.error('❌ Error registering commands:', error);
