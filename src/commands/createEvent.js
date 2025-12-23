@@ -47,6 +47,29 @@ export async function handleCreateEventCommand(interaction) {
       return;
     }
     
+    // Format times for different timezones (needed for channel topic)
+    // UTC+7 time (your timezone - Bangkok, Hanoi, Jakarta)
+    const utc7Time = startTime.toLocaleString('en-US', { 
+      timeZone: 'Asia/Bangkok', // UTC+7
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    // UTC+8 time (for your friend - Singapore, Hong Kong, Manila)
+    const utc8Time = startTime.toLocaleString('en-US', {
+      timeZone: 'Asia/Singapore', // UTC+8
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
     // Create event channel
     const channelName = eventName.toLowerCase().replace(/\s+/g, '-');
     let channel;
@@ -121,29 +144,6 @@ export async function handleCreateEventCommand(interaction) {
     
     // Post main message in event channel (visible to everyone)
     const timeUntilStart = Math.ceil((startTime - new Date()) / 1000 / 60); // minutes
-    
-    // Format times for different timezones
-    // UTC+7 time (your timezone - Bangkok, Hanoi, Jakarta)
-    const utc7Time = startTime.toLocaleString('en-US', { 
-      timeZone: 'Asia/Bangkok', // UTC+7
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-    
-    // UTC+8 time (for your friend - Singapore, Hong Kong, Manila)
-    const utc8Time = startTime.toLocaleString('en-US', {
-      timeZone: 'Asia/Singapore', // UTC+8
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
     
     await channel.send({
       content: `# 📋 ${eventName}\n\n` +
