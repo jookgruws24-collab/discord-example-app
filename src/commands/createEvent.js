@@ -115,9 +115,25 @@ export async function handleCreateEventCommand(interaction) {
     // Post main message in event channel (visible to everyone)
     const timeUntilStart = Math.ceil((startTime - new Date()) / 1000 / 60); // minutes
     
+    // Format times for different timezones
+    const localTime = startTime.toLocaleString('en-US', { 
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+    
+    // UTC+8 time (for your friend)
+    const utcPlus8Time = startTime.toLocaleString('en-US', {
+      timeZone: 'Asia/Singapore', // UTC+8
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+    
     await channel.send({
       content: `# 📋 ${eventName}\n\n` +
-               `**Event Start Time:** ${startTime.toLocaleString()}\n` +
+               `**Event Start Time:**\n` +
+               `🕐 Local: ${localTime}\n` +
+               `🌏 UTC+8: ${utcPlus8Time}\n\n` +
                `⏰ Check-in will be available in **${timeUntilStart} minute(s)**\n\n` +
                `_The check-in button will automatically enable when the event starts._`,
       components: [row1],
@@ -167,6 +183,7 @@ export async function handleCreateEventCommand(interaction) {
 
 /**
  * Parse start time string to Date object
+ * Interprets input as LOCAL timezone, not UTC
  * 
  * @param {string} input - Start time string (e.g., "2025-12-25 14:00")
  * @returns {Date|null} - Parsed date or null if invalid
@@ -174,7 +191,9 @@ export async function handleCreateEventCommand(interaction) {
 function parseStartTime(input) {
   try {
     // Expected format: "YYYY-MM-DD HH:MM"
-    const date = new Date(input);
+    // Replace space with 'T' to create ISO-like format but treat as local time
+    const formatted = input.trim().replace(' ', 'T');
+    const date = new Date(formatted);
     
     if (isNaN(date.getTime())) {
       return null;
