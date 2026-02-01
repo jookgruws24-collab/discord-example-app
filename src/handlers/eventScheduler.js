@@ -56,10 +56,6 @@ async function processEventUpdates() {
   try {
     // Process events that need to transition from 'pending' to 'active'
     await enableCheckInForPendingEvents();
-    
-    // Process events that need check-out disabled (15 min after close)
-    await disableCheckOutForClosedEvents();
-    
   } catch (error) {
     console.error('❌ Error processing event updates:', error);
   }
@@ -114,53 +110,6 @@ async function enableCheckInForPendingEvents() {
     }
   } catch (error) {
     console.error('❌ Error enabling check-in for pending events:', error);
-  }
-}
-
-/**
- * Disable check-out for events closed over 15 minutes ago
- */
-async function disableCheckOutForClosedEvents() {
-  try {
-    const events = await getEventsForCheckoutDisable();
-    
-    if (events.length === 0) {
-      return;
-    }
-    
-    console.log(`⏰ Found ${events.length} event(s) ready to disable check-out`);
-    
-    for (const event of events) {
-      try {
-        // Get channel
-        const channel = await client.channels.fetch(event.channel_id).catch(() => null);
-        
-        if (!channel) {
-          console.warn(`⚠️ Channel ${event.channel_id} not found for event ${event.event_id} - marking as processed`);
-          await markCheckoutDisabled(event.event_id);
-          continue;
-        }
-        
-        // Disable check-out button in channel
-        await disableCheckOutButton(channel, event.event_id);
-        
-        // Mark event as processed (won't send message again)
-        await markCheckoutDisabled(event.event_id);
-        
-        // Post announcement (only once)
-        await channel.send({
-          content: `🔒 **Check-Out Closed**\n\n` +
-                   `The check-out period has ended (15 minutes after event closure).\n` +
-                   `Check-out is no longer available.`,
-        });
-        
-        console.log(`✅ Disabled check-out for event ${event.event_id}`);
-      } catch (eventError) {
-        console.error(`❌ Error processing event ${event.event_id}:`, eventError);
-      }
-    }
-  } catch (error) {
-    console.error('❌ Error disabling check-out for closed events:', error);
   }
 }
 
@@ -247,19 +196,11 @@ async function disableCheckOutButton(channel, eventId) {
     // Fetch recent messages to find both messages
     const messages = await channel.messages.fetch({ limit: 15 });
     
-    // Find main message with check-in/check-out buttons
+    // Find main message with check-in buttons
     const eventMessage = messages.find(msg => 
       msg.components.length > 0 && 
       msg.components[0].components.some(component => 
-        component.customId === `checkout_${eventId}` || component.customId === `checkin_${eventId}`
-      )
-    );
-    
-    // Find admin message with close/export buttons
-    const adminMessage = messages.find(msg =>
-      msg.components.length > 0 &&
-      msg.components[0].components.some(component =>
-        component.customId === `close_event_${eventId}` || component.customId === `export_event_${eventId}`
+        component.customId === `checkin_${eventId}`
       )
     );
     
@@ -268,48 +209,25 @@ async function disableCheckOutButton(channel, eventId) {
       return;
     }
     
-    // Disable check-in and check-out buttons (main message)
+    // Disable all buttons (check-in and undo)
     const checkInButton = new ButtonBuilder()
       .setCustomId(`checkin_${eventId}`)
       .setLabel('Check In')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true);
     
-    const checkOutButton = new ButtonBuilder()
-      .setCustomId(`checkout_${eventId}`)
-      .setLabel('Check Out')
+    const undoCheckInButton = new ButtonBuilder()
+      .setCustomId(`undo_checkin_${eventId}`)
+      .setLabel('❌ Undo Check-In')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true); // Now disabled
+      .setDisabled(true);
     
-    const row1 = new ActionRowBuilder().addComponents(checkInButton, checkOutButton);
+    const row1 = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton);
     await eventMessage.edit({ components: [row1] });
     
-    // Add Export button now that check-out is closed (admin message)
-    if (adminMessage) {
-      const closeEventButton = new ButtonBuilder()
-        .setCustomId(`close_event_${eventId}`)
-        .setLabel('🚪 Close Event')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(true); // Keep disabled
-      
-      const exportButton = new ButtonBuilder()
-        .setCustomId(`export_event_${eventId}`)
-        .setLabel('📊 Export CSV')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(false); // Now enabled - appears for first time!
-      
-      const row2 = new ActionRowBuilder().addComponents(closeEventButton, exportButton);
-      await adminMessage.edit({ 
-        content: `## 🔐 Admin Controls\n\n` +
-                 `**Export CSV:** Download attendance data\n\n` +
-                 `⚠️ _These controls are for admins only._`,
-        components: [row2] 
-      });
-    }
-    
-    console.log(`✅ Disabled check-out button, kept export button enabled for event ${eventId}`);
+    console.log(`✅ Disabled all buttons for event ${eventId}`);
   } catch (error) {
-    console.error(`❌ Error disabling check-out button:`, error);
+    console.error(`❌ Error disabling buttons:`, error);
   }
 }
 

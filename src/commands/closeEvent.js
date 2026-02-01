@@ -51,29 +51,24 @@ export async function handleCloseEventCommand(interaction) {
       return;
     }
     
-    // Get status summary statistics
-    const stats = await getEventStatusSummary(event.event_id);
+    // Get all check-ins for this event
+    const checkInList = await getCheckInList(event.event_id);
     
-    // Update channel message buttons
+    // Update channel message buttons (disable check-in button)
     await updateChannelButtonsOnClose(interaction.channel, event.event_id);
     
     // Build summary message
     let summaryMessage = `✅ Event "${event.event_name}" has been closed!\n\n` +
-                         `📋 Check-in is now **disabled**\n` +
-                         `🚪 Check-out is now **enabled** for the next 15 minutes\n` +
-                         `⏰ Check-out will automatically disable after 15 minutes`;
+                         `📋 Check-in is now **disabled**`;
     
-    // Add statistics if available
-    if (stats) {
-      const completionRate = stats.total > 0 
-        ? ((stats.completed / stats.total) * 100).toFixed(1)
-        : '0.0';
-      
-      summaryMessage += `\n\n**📊 Attendance Summary:**\n` +
-                       `• Total Check-ins: **${stats.total}**\n` +
-                       `• Completed (with check-out): **${stats.completed}**\n` +
-                       `• Incomplete (no check-out): **${stats.incomplete}**\n` +
-                       `• Completion Rate: **${completionRate}%**`;
+    // Add attendance list
+    if (checkInList && checkInList.length > 0) {
+      summaryMessage += `\n\n**👥 Check-in List (${checkInList.length} attendee(s)):**\n`;
+      checkInList.forEach((checkin, index) => {
+        summaryMessage += `${index + 1}. **${checkin.ign}** (${checkin.username})\n`;
+      });
+    } else {
+      summaryMessage += `\n\n**👥 No one has checked in to this event.**`;
     }
     
     // Send confirmation
@@ -85,8 +80,7 @@ export async function handleCloseEventCommand(interaction) {
     await interaction.channel.send({
       content: `🔔 **Event Closed**\n\n` +
                `This event has been closed by ${interaction.user}.\n` +
-               `✅ Check-out is now available for the next **15 minutes**.\n` +
-               `_The check-out button will automatically disable after 15 minutes._`,
+               `Event is now complete. Check-in/out features have been disabled.`,
     });
     
     console.log(`✅ Event ${event.event_id} closed successfully`);
@@ -135,76 +129,57 @@ async function updateChannelButtonsOnClose(channel, eventId) {
       return;
     }
     
-    // Create updated buttons - disable check-in and undo, enable check-out
+    // Create updated buttons - disable all buttons when event closes
     const checkInButton = new ButtonBuilder()
       .setCustomId(`checkin_${eventId}`)
       .setLabel('Check In')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true); // Disabled when closed
+      .setDisabled(true);
     
     const undoCheckInButton = new ButtonBuilder()
       .setCustomId(`undo_checkin_${eventId}`)
       .setLabel('❌ Undo Check-In')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true); // Disabled when closed
+      .setDisabled(true);
     
-    const checkOutButton = new ButtonBuilder()
-      .setCustomId(`checkout_${eventId}`)
-      .setLabel('Check Out')
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(false); // Enabled when closed
-    
-    const row = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton, checkOutButton);
+    const row = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton);
     
     // Update message
     await eventMessage.edit({
       components: [row],
     });
     
-    console.log(`✅ Updated channel buttons - check-in disabled, check-out enabled`);
+    console.log(`✅ Updated channel buttons - all buttons disabled`);
   } catch (error) {
     console.error('❌ Error updating channel buttons:', error);
   }
 }
 
 /**
- * Get event status summary statistics
+ * Get check-in list for an event
  * 
  * @param {string} eventId - UUID of the event
- * @returns {Promise<Object|null>} - Status counts or null
+ * @returns {Promise<Array|null>} - List of check-ins or null
  */
-async function getEventStatusSummary(eventId) {
+async function getCheckInList(eventId) {
   try {
     const { supabase } = await import('../database/supabase.js');
     
-    // Get all check-ins for the event
+    // Get all check-ins for the event, sorted by timestamp
     const { data, error } = await supabase
       .from('checkins')
-      .select('status')
-      .eq('event_id', eventId);
+      .select('ign, username')
+      .eq('event_id', eventId)
+      .order('timestamp', { ascending: true });
     
     if (error) {
-      console.error('❌ Error fetching status summary:', error);
+      console.error('❌ Error fetching check-in list:', error);
       return null;
     }
     
-    // Count by status
-    const stats = {
-      total: data?.length || 0,
-      checkedIn: 0,
-      completed: 0,
-      incomplete: 0,
-    };
-    
-    (data || []).forEach(row => {
-      if (row.status === 'checked-in') stats.checkedIn++;
-      else if (row.status === 'completed') stats.completed++;
-      else if (row.status === 'incomplete') stats.incomplete++;
-    });
-    
-    return stats;
+    return data || [];
   } catch (error) {
-    console.error('❌ Error calculating status summary:', error);
+    console.error('❌ Error calculating check-in list:', error);
     return null;
   }
 }

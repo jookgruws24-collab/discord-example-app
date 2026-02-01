@@ -330,23 +330,36 @@ export async function handleCloseEventButton(interaction) {
       return;
     }
     
+    // Get all check-ins for this event
+    const checkInList = await getCheckInListFromDb(event.event_id);
+    
     // Update channel message buttons
     await updateChannelButtonsOnClose(interaction.channel, event.event_id);
     
+    // Build summary message
+    let summaryMessage = `✅ Event "${event.event_name}" has been closed!\n\n` +
+                         `📋 Check-in is now **disabled**`;
+    
+    // Add attendance list
+    if (checkInList && checkInList.length > 0) {
+      summaryMessage += `\n\n**👥 Check-in List (${checkInList.length} attendee(s)):**\n`;
+      checkInList.forEach((checkin, index) => {
+        summaryMessage += `${index + 1}. **${checkin.ign}** (${checkin.username})\n`;
+      });
+    } else {
+      summaryMessage += `\n\n**👥 No one has checked in to this event.**`;
+    }
+    
     // Send confirmation
     await interaction.editReply({
-      content: `✅ Event "${event.event_name}" has been closed!\n\n` +
-               `📋 Check-in is now **disabled**\n` +
-               `🚪 Check-out is now **enabled** for the next 15 minutes\n` +
-               `⏰ Check-out will automatically disable after 15 minutes`,
+      content: summaryMessage,
     });
     
     // Post announcement in channel
     await interaction.channel.send({
       content: `🔔 **Event Closed**\n\n` +
                `This event has been closed by ${interaction.user}.\n` +
-               `✅ Check-out is now available for the next **15 minutes**.\n` +
-               `_The check-out button will automatically disable after 15 minutes._`,
+               `Event is now complete. Check-in/out features have been disabled.`,
     });
     
     console.log(`✅ Event ${event.event_id} closed successfully via button`);
@@ -396,41 +409,23 @@ async function updateChannelButtonsOnClose(channel, eventId) {
       return;
     }
     
-    // Update main message: Disable check-in, enable check-out
+    // Update main message: Disable check-in and undo buttons only
     const checkInButton = new ButtonBuilder()
       .setCustomId(`checkin_${eventId}`)
       .setLabel('Check In')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true); // Disabled when closed
+      .setDisabled(true);
     
-    const checkOutButton = new ButtonBuilder()
-      .setCustomId(`checkout_${eventId}`)
-      .setLabel('Check Out')
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(false); // Enabled when closed
+    const undoCheckInButton = new ButtonBuilder()
+      .setCustomId(`undo_checkin_${eventId}`)
+      .setLabel('❌ Undo Check-In')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true);
     
-    const row1 = new ActionRowBuilder().addComponents(checkInButton, checkOutButton);
+    const row1 = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton);
     await eventMessage.edit({ components: [row1] });
     
-    // Update admin message: Disable close button (export comes after 15 min)
-    if (adminMessage) {
-      const closeEventButton = new ButtonBuilder()
-        .setCustomId(`close_event_${eventId}`)
-        .setLabel('🚪 Close Event')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(true); // Disabled after close
-      
-      const row2 = new ActionRowBuilder().addComponents(closeEventButton);
-      await adminMessage.edit({ 
-        content: `## 🔐 Admin Controls\n\n` +
-                 `**Close Event:** Event has been closed\n` +
-                 `**Export CSV:** Will be available after check-out closes (15 minutes)\n\n` +
-                 `⚠️ _These controls are for admins only._`,
-        components: [row2] 
-      });
-    }
-    
-    console.log(`✅ Updated channel buttons - check-in disabled, check-out enabled`);
+    console.log(`✅ Updated channel buttons - all buttons disabled`);
   } catch (error) {
     console.error('❌ Error updating channel buttons:', error);
   }
@@ -705,7 +700,7 @@ async function handleUndoCheckInButton(interaction) {
     // Check if event is closed
     if (event.status === 'closed') {
       await interaction.editReply({
-        content: '🚫 Cannot undo check-in after event is closed. Please use check-out instead.',
+        content: '🚫 Cannot undo check-in after event is closed.',
       });
       return;
     }
@@ -768,6 +763,33 @@ async function handleUndoCheckInButton(interaction) {
     } catch (followUpError) {
       console.error('❌ Failed to send error message:', followUpError);
     }
+  }
+}
+
+/**
+ * Get check-in list for an event from database
+ * 
+ * @param {string} eventId - UUID of the event
+ * @returns {Promise<Array|null>} - List of check-ins or null
+ */
+async function getCheckInListFromDb(eventId) {
+  try {
+    // Get all check-ins for the event, sorted by timestamp
+    const { data, error } = await supabase
+      .from('checkins')
+      .select('ign, username')
+      .eq('event_id', eventId)
+      .order('timestamp', { ascending: true });
+    
+    if (error) {
+      console.error('❌ Error fetching check-in list:', error);
+      return null;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('❌ Error getting check-in list:', error);
+    return null;
   }
 }
 

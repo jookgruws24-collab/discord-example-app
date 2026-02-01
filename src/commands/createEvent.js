@@ -140,20 +140,6 @@ export async function handleCreateEventCommand(interaction) {
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true); // Will be enabled when event starts
     
-    // Create Close Event button (disabled initially, shown when event starts)
-    const closeEventButton = new ButtonBuilder()
-      .setCustomId(`close_event_${eventId}`)
-      .setLabel('🚪 Close Event')
-      .setStyle(ButtonStyle.Danger)
-      .setDisabled(true); // Will be enabled when event starts
-    
-    // Create Delete Event button (always enabled for admins)
-    const deleteEventButton = new ButtonBuilder()
-      .setCustomId(`delete_event_${eventId}`)
-      .setLabel('🗑️ Delete Event')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(false); // Always enabled
-    
     // ActionRow 1: Check-in and Undo buttons (for everyone)
     const row1 = new ActionRowBuilder().addComponents(checkInButton, undoCheckInButton);
     
@@ -172,11 +158,23 @@ export async function handleCreateEventCommand(interaction) {
     
     // Post admin-only control panel as separate message
     // ActionRow 2: Close Event and Delete Event buttons
+    const closeEventButton = new ButtonBuilder()
+      .setCustomId(`close_event_${eventId}`)
+      .setLabel('🚪 Close Event')
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(true); // Will be enabled when event starts
+    
+    const deleteEventButton = new ButtonBuilder()
+      .setCustomId(`delete_event_${eventId}`)
+      .setLabel('🗑️ Delete Event')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(false); // Always enabled
+    
     const row2 = new ActionRowBuilder().addComponents(closeEventButton, deleteEventButton);
     
     await channel.send({
       content: `## 🔐 Admin Controls\n\n` +
-               `**Close Event:** End the event and enable check-out (available when event starts)\n` +
+               `**Close Event:** End the event and view check-in list (available when event starts)\n` +
                `**Delete Event:** Permanently delete this event and channel\n\n` +
                `⚠️ _These controls are for admins only. Delete action cannot be undone._`,
       components: [row2],
